@@ -136,4 +136,29 @@ export const SERVICIO_TEMPLATES: ServicioTemplate[] = [
       'Cumplimiento estricto del Sistema de Gestión de Seguridad y Salud en el Trabajo (SGSST).',
     ],
   },
+  {
+    id: 'tecnico-inhouse',
+    nombre: 'Técnico Inhouse (Outsourcing IT)',
+    icono: '👨‍💻',
+    color: '#8b5cf6',
+    descripcion: 'Asignación de un técnico especializado de forma exclusiva en las instalaciones del cliente.',
+    introProtocolo:
+      'Nuestro servicio de Técnico Inhouse provee personal de TI capacitado trabajando directamente en sus instalaciones, ' +
+      'integrándose a sus procesos y garantizando tiempos de respuesta inmediatos para el soporte de usuarios y mantenimiento de infraestructura.',
+    pasosInfografia: [
+      { icono: '⏱️', titulo: 'Soporte Inmediato', descripcion: 'Atención presencial rápida a incidentes del día a día.' },
+      { icono: '🛠️', titulo: 'Mantenimiento Continuo', descripcion: 'Ejecución de rutinas de mantenimiento preventivo.' },
+      { icono: '📦', titulo: 'Gestión de Inventario', descripcion: 'Control y actualización del inventario de activos TI.' },
+      { icono: '🤝', titulo: 'Acompañamiento', descripcion: 'Soporte VIP a directivos y usuarios críticos.' },
+      { icono: '🔄', titulo: 'Gestión de Garantías', descripcion: 'Trámite directo con fabricantes de hardware.' },
+      { icono: '📊', titulo: 'Reportes Mensuales', descripcion: 'Entrega de indicadores de gestión y tickets resueltos.' },
+    ],
+    pasosLista: [
+      'Cumplimiento de horario laboral acordado con el cliente (Ej: L-V 8:00am a 5:00pm).',
+      'Reemplazo del técnico garantizado en caso de ausencias (vacaciones, incapacidades).',
+      'Respaldo de todo el equipo de ingeniería de Help Soluciones para escalamiento de casos Nivel 2 y 3.',
+      'Dotación completa y herramientas de trabajo provistas por Help Soluciones.',
+      'Responsabilidad laboral y administrativa asumida al 100% por Help Soluciones.',
+    ],
+  },
 ];

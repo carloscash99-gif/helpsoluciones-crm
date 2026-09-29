@@ -99,6 +99,14 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
         objetivo: 'El objetivo de la presente propuesta es establecer una alianza estratégica para garantizar la continuidad operativa de la plataforma tecnológica de la compañía mediante el suministro de un servicio integral de Mesa de Ayuda (Help Desk). Nuestra solución combina personal técnico especializado, un riguroso plan de mantenimientos preventivos y correctivos anuales, soporte técnico con un esquema híbrido de 3 días presenciales en su sede y 2 días de forma remota, junto con soporte en tiempo real para incidentes críticos. Todo gestionado bajo estrictos Acuerdos de Niveles de Servicio (SLA) a través de nuestra plataforma digital, con el fin de minimizar la inactividad y potenciar la productividad operativa de sus colaboradores.',
         observaciones: 'Resumen del Aplicativo de Mesa de Ayuda:\n• Canal de Reporte Oficial: Portal Web (helpsoluciones.com.co/soportetecnico/index.php) activo 24/7 para registro de tickets.\n• Niveles de Servicio (SLA Nivel 1):\n  - Crítica (Falla total): Respuesta <= 15 min / Solución <= 2h\n  - Alta (Bloqueos/Sin internet): Respuesta <= 30 min / Solución <= 4h\n  - Media (Lentitud/Periféricos): Respuesta <= 1h / Solución <= 12h\n  - Baja (Dudas/Consultas): Respuesta <= 2h / Solución <= 48h\n• Garantía Operativa: Préstamo de hasta 2 equipos de cómputo de backup en caso de superar tiempos de solución en criticidad alta/crítica.'
       }));
+    } else if (id === 'tecnico-inhouse') {
+      setForm(f => ({
+        ...f,
+        tipoServicioId: id,
+        tipoServicioNombre: 'Técnico Inhouse (Outsourcing IT) - Nivel 1',
+        objetivo: 'Proveer un técnico en sitio perfil Nivel 1 (Soporte Técnico Básico y Help Desk) de manera exclusiva, garantizando la continuidad operativa y atención inmediata a los incidentes reportados por los usuarios de la sede.',
+        visitas: [{ id: crypto.randomUUID(), sede: 'Sede Principal (Inhouse)', horario: 'Lunes a Viernes de 8:00 AM a 5:00 PM' }]
+      }));
     } else {
       setForm(f => ({ ...f, tipoServicioId: id, tipoServicioNombre: t?.nombre || '' }));
     }
@@ -493,6 +501,53 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
                 <div className="text-xs text-slate-500 mt-1">Nuevo tipo</div>
               </button>
             </div>
+            
+            {form.tipoServicioId === 'tecnico-inhouse' && (
+              <div className="mt-4 p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-lg space-y-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-indigo-300 mb-1.5">Nivel del Técnico *</label>
+                  <select
+                    value={form.tipoServicioNombre.includes('Nivel 1') ? 'Nivel 1' : form.tipoServicioNombre.includes('Nivel 2') ? 'Nivel 2' : form.tipoServicioNombre.includes('Nivel 3') ? 'Nivel 3' : ''}
+                    onChange={e => {
+                      const nivel = e.target.value;
+                      const map: Record<string, string> = {
+                        'Nivel 1': 'Nivel 1 (Soporte Técnico Básico y Help Desk)',
+                        'Nivel 2': 'Nivel 2 (Soporte Especializado y Redes)',
+                        'Nivel 3': 'Nivel 3 (Administrador de Infraestructura / Sysadmin)'
+                      };
+                      setForm(f => ({
+                        ...f,
+                        tipoServicioNombre: `Técnico Inhouse (Outsourcing IT) - ${nivel}`,
+                        objetivo: `Proveer un técnico en sitio perfil ${map[nivel] || nivel} de manera exclusiva, garantizando la continuidad operativa y atención inmediata a los incidentes reportados por los usuarios de la sede.`
+                      }));
+                    }}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"
+                  >
+                    <option value="">Seleccione el nivel del técnico...</option>
+                    <option value="Nivel 1">Nivel 1 (Soporte Técnico Básico y Help Desk)</option>
+                    <option value="Nivel 2">Nivel 2 (Soporte Especializado y Redes)</option>
+                    <option value="Nivel 3">Nivel 3 (Administrador de Infraestructura / Sysadmin)</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-indigo-300 mb-1.5">Horario de Servicio *</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Lunes a Viernes de 8:00 AM a 5:00 PM"
+                    value={form.visitas[0]?.horario || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setForm(f => ({
+                        ...f,
+                        visitas: [{ id: f.visitas[0]?.id || crypto.randomUUID(), sede: f.visitas[0]?.sede || 'Sede Principal (Inhouse)', horario: val }]
+                      }));
+                    }}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Items Table */}
