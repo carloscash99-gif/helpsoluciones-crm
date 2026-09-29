@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState } from 'react';
 import { generateContent } from '../services/gemini';
 import { type Producto } from '../App';

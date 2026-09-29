@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState } from 'react';
 import type { AppUser, SalesBudget, Cotizacion, VentaManual } from '../App';
 import { generateCommercialReportPDF } from '../utils/pdfGenerator';

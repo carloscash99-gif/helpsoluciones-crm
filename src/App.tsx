@@ -700,27 +700,13 @@ function App() {
 
       channel = supabase
         .channel('schema-db-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_users' }, (p) => {
-          console.log('Cambio detectado en Usuarios:', p);
+        .on('postgres_changes', { event: '*', schema: 'public' }, (p) => {
+          console.log(`Cambio detectado en tabla: ${p.table}`, p);
           fetchInitialData();
-          if (currentUser && p.new && (p.new as any).id === currentUser.id) {
+          if (p.table === 'app_users' && currentUser && p.new && (p.new as any).id === currentUser.id) {
             setCurrentUser(p.new as AppUser);
           }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'proveedores' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cotizaciones' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ordenes_compra' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'despachos' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'conductores' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'alquileres' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'reparaciones' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'devoluciones' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'budgets' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas_manuales' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes_web' }, () => fetchInitialData())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_pendientes' }, () => fetchInitialData())
         .subscribe((status) => {
           console.log('Estado de conexión Realtime:', status);
           setRealtimeStatus(status === 'SUBSCRIBED' ? 'En Línea' : status);
@@ -1975,7 +1961,7 @@ function App() {
     { id: 'agente-informes', label: 'Agente de Informes', icon: '🤖' },
   ].filter(item => {
     if (item.id === 'productos') return true; // Everyone can see/edit products
-    if ((item.id === 'facturacion' || item.id === 'ventas-manuales' || item.id === 'leads-web' || item.id === 'registros-web' || item.id === 'vendedores' || item.id === 'informes' || item.id === 'remisiones' || item.id === 'comisiones' || item.id === 'propuestas') && currentUser?.rol === 'Admin') return true;
+    if ((item.id === 'facturacion' || item.id === 'ventas-manuales' || item.id === 'leads-web' || item.id === 'registros-web' || item.id === 'vendedores' || item.id === 'informes' || item.id === 'remisiones' || item.id === 'comisiones' || item.id === 'propuestas' || item.id === 'ordenes-compra') && currentUser?.rol === 'Admin') return true;
     if (item.id === 'propuestas' && (currentUser?.rol === 'Admin' || currentUser?.rol?.toLowerCase() === 'admin' || currentUser?.rol === 'Comercial' || currentUser?.rol?.toLowerCase() === 'comercial' || currentUser?.permisos.includes('propuestas'))) return true;
     if (item.id === 'leads-web' && (currentUser?.rol === 'Comercial' || currentUser?.rol?.toLowerCase() === 'comercial')) return true;
     return currentUser?.permisos.includes(item.id);
