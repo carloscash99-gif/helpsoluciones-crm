@@ -258,100 +258,101 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
     });
   }
 
-  // ─── PAGE 3: PROTOCOL ───────────────────────────────────────────────────────
+  // ─── PAGE 3: PROTOCOL (Condicional según propuesta / cliente) ───────────────
+  const incluirProtocolo = propuesta.incluirProtocolo !== false;
 
-  doc.addPage();
-  addPageHeader(doc, propuesta, 3);
+  if (incluirProtocolo) {
+    doc.addPage();
+    addPageHeader(doc, propuesta, doc.getNumberOfPages());
 
-  let y = 22;
+    let y = 22;
 
-  doc.setFontSize(7.5);
-  doc.setTextColor(...INDIGO);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ALCANCE DEL SERVICIO', 14, y);
-  y += 6;
-
-  doc.setFontSize(14);
-  doc.setTextColor(...TEXT_DARK);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Protocolo de ' + template.nombre, 14, y);
-  y += 8;
-
-  // Intro box
-  doc.setFillColor(...LIGHT_GRAY);
-  doc.rect(14, y, W - 28, 18, 'F');
-  doc.setFillColor(...INDIGO);
-  doc.rect(14, y, 1.5, 18, 'F');
-  doc.setFontSize(8.5);
-  doc.setTextColor(...TEXT_MUTED);
-  doc.setFont('helvetica', 'normal');
-  const introLines = doc.splitTextToSize(template.introProtocolo, W - 34);
-  doc.text(introLines, 18, y + 6);
-  y += 24;
-
-  // Infographic grid: 3 columns × 2 rows
-  const cardW = (W - 28 - 8) / 3;
-  const cardH = 38;
-  template.pasosInfografia.forEach((paso, idx) => {
-    const col = idx % 3;
-    const row = Math.floor(idx / 3);
-    const x = 14 + col * (cardW + 4);
-    const cy = y + row * (cardH + 3);
-
-    doc.setFillColor(250, 250, 250);
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, cy, cardW, cardH, 2, 2, 'FD');
-
-    // Step number circle
-    doc.setFillColor(...INDIGO);
-    doc.circle(x + cardW / 2, cy + 6, 4.5, 'F');
     doc.setFontSize(7.5);
-    doc.setTextColor(...WHITE);
+    doc.setTextColor(...INDIGO);
     doc.setFont('helvetica', 'bold');
-    doc.text(String(idx + 1), x + cardW / 2, cy + 8, { align: 'center' });
+    doc.text('ALCANCE DEL SERVICIO', 14, y);
+    y += 6;
 
-    // Emoji icon rendered via Canvas → PNG
-    const iconUrl = emojiToDataUrl(paso.icono, 64);
-    if (iconUrl) {
-      const iconSize = 10;
-      doc.addImage(iconUrl, 'PNG', x + cardW / 2 - iconSize / 2, cy + 12, iconSize, iconSize);
-    }
-
-    doc.setFontSize(7.5);
+    doc.setFontSize(14);
     doc.setTextColor(...TEXT_DARK);
     doc.setFont('helvetica', 'bold');
-    doc.text(paso.titulo, x + cardW / 2, cy + 26, { align: 'center' });
+    doc.text('Protocolo de ' + template.nombre, 14, y);
+    y += 8;
 
-    doc.setFontSize(6.2);
+    // Intro box
+    doc.setFillColor(...LIGHT_GRAY);
+    doc.rect(14, y, W - 28, 18, 'F');
+    doc.setFillColor(...INDIGO);
+    doc.rect(14, y, 1.5, 18, 'F');
+    doc.setFontSize(8.5);
     doc.setTextColor(...TEXT_MUTED);
     doc.setFont('helvetica', 'normal');
-    const descLines = doc.splitTextToSize(paso.descripcion, cardW - 4);
-    doc.text(descLines, x + cardW / 2, cy + 31, { align: 'center' });
-  });
+    const introLines = doc.splitTextToSize(template.introProtocolo, W - 34);
+    doc.text(introLines, 18, y + 6);
+    y += 24;
 
-  y += 2 * (cardH + 3) + 4;
+    // Infographic grid: 3 columns × 2 rows
+    const cardW = (W - 28 - 8) / 3;
+    const cardH = 38;
+    template.pasosInfografia.forEach((paso, idx) => {
+      const col = idx % 3;
+      const row = Math.floor(idx / 3);
+      const x = 14 + col * (cardW + 4);
+      const cy = y + row * (cardH + 3);
 
-  template.pasosLista.forEach((paso, idx) => {
-    doc.setFillColor(...LIGHT_GRAY);
-    doc.rect(14, y, W - 28, 8, 'F');
-    doc.setFillColor(...INDIGO);
-    doc.circle(20, y + 4, 3, 'F');
-    doc.setFontSize(7);
-    doc.setTextColor(...WHITE);
-    doc.setFont('helvetica', 'bold');
-    doc.text(String(template.pasosInfografia.length + idx + 1), 20, y + 5.5, { align: 'center' });
-    doc.setFontSize(8.5);
-    doc.setTextColor(...TEXT_DARK);
-    doc.setFont('helvetica', 'normal');
-    const txt = paso.replace(/de Cinemark/gi, `de ${propuesta.clienteNombre}`).replace(/del cliente/gi, `de ${propuesta.clienteNombre}`).replace(/el cliente/gi, propuesta.clienteNombre);
-    doc.text(txt, 26, y + 5.2);
-    y += 10;
-  });
+      doc.setFillColor(250, 250, 250);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(x, cy, cardW, cardH, 2, 2, 'FD');
 
-  // ─── PAGE 4: PRICE + TERMS + SIGNATURES ─────────────────────────────────────
+      // Step number circle
+      doc.setFillColor(...INDIGO);
+      doc.circle(x + cardW / 2, cy + 6, 4.5, 'F');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...WHITE);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(idx + 1), x + cardW / 2, cy + 8, { align: 'center' });
 
-  let pageNum = 4;
+      // Emoji icon rendered via Canvas → PNG
+      const iconUrl = emojiToDataUrl(paso.icono, 64);
+      if (iconUrl) {
+        const iconSize = 10;
+        doc.addImage(iconUrl, 'PNG', x + cardW / 2 - iconSize / 2, cy + 12, iconSize, iconSize);
+      }
+
+      doc.setFontSize(7.5);
+      doc.setTextColor(...TEXT_DARK);
+      doc.setFont('helvetica', 'bold');
+      doc.text(paso.titulo, x + cardW / 2, cy + 26, { align: 'center' });
+
+      doc.setFontSize(6.2);
+      doc.setTextColor(...TEXT_MUTED);
+      doc.setFont('helvetica', 'normal');
+      const descLines = doc.splitTextToSize(paso.descripcion, cardW - 4);
+      doc.text(descLines, x + cardW / 2, cy + 31, { align: 'center' });
+    });
+
+    y += 2 * (cardH + 3) + 4;
+
+    template.pasosLista.forEach((paso, idx) => {
+      doc.setFillColor(...LIGHT_GRAY);
+      doc.rect(14, y, W - 28, 8, 'F');
+      doc.setFillColor(...INDIGO);
+      doc.circle(20, y + 4, 3, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(...WHITE);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(template.pasosInfografia.length + idx + 1), 20, y + 5.5, { align: 'center' });
+      doc.setFontSize(8.5);
+      doc.setTextColor(...TEXT_DARK);
+      doc.setFont('helvetica', 'normal');
+      const txt = paso.replace(/de Cinemark/gi, `de ${propuesta.clienteNombre}`).replace(/del cliente/gi, `de ${propuesta.clienteNombre}`).replace(/el cliente/gi, propuesta.clienteNombre);
+      doc.text(txt, 26, y + 5.2);
+      y += 10;
+    });
+  }
+
+  // ─── SLA (solo Mesa de Ayuda) ───────────────────────────────────────────────
   if (propuesta.tipoServicioId === 'mesa-de-ayuda') {
     // SLA importados del RFP del cliente, o los estándar de Help Soluciones
     const slaPropios = !!propuesta.slas && propuesta.slas.filas.length > 0;
@@ -359,8 +360,7 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
     const slaNotasBase = slaPropios ? propuesta.slas!.notas : SLA_ESTANDAR_NOTAS;
 
     doc.addPage();
-    addPageHeader(doc, propuesta, pageNum);
-    pageNum++;
+    addPageHeader(doc, propuesta, doc.getNumberOfPages());
 
     let ySla = 22;
     doc.setFontSize(7.5);
@@ -431,11 +431,10 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
     }
 
     // Los SLA importados pueden ocupar más de una página
-    pageNum = doc.getNumberOfPages() + 1;
   }
 
   doc.addPage();
-  addPageHeader(doc, propuesta, pageNum);
+  addPageHeader(doc, propuesta, doc.getNumberOfPages());
 
   y = 22;
 
@@ -466,7 +465,12 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
 
   if (itemsConValor.length === 0) {
     tableBody.push([
-      { content: `${template.nombre}\nIncluye visita técnica, informe y protocolo completo`, styles: { fontSize: 8.5 } },
+      {
+        content: incluirProtocolo
+          ? `${template.nombre}\nIncluye visita técnica, informe y protocolo completo`
+          : `${template.nombre}\nIncluye visita técnica e informe detallado`,
+        styles: { fontSize: 8.5 }
+      },
       '1',
       formatCurrency(propuesta.valor, propuesta.moneda),
       formatCurrency(propuesta.valor, propuesta.moneda),

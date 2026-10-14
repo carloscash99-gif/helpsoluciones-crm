@@ -46,6 +46,7 @@ const makeEmpty = (currentUser: AppUser): Omit<Propuesta, 'id' | 'consecutivo'> 
     'Notificar incidencias o fallos de manera oportuna.',
     'Cumplir con los plazos acordados.',
   ],
+  incluirProtocolo: true,
   estado: 'Borrador',
   comercialNombre: currentUser.nombre,
   comercialTelefono: currentUser.telefono || '',
@@ -73,13 +74,17 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
   const openEdit = (p: Propuesta) => {
     setEditTarget(p);
     const { id: _id, consecutivo: _c, ...rest } = p;
-    setForm(rest);
+    setForm({
+      ...rest,
+      incluirProtocolo: p.incluirProtocolo !== false,
+    });
     setItemSearches({});
     setView('form');
   };
 
   const handleClienteChange = (clienteId: string) => {
     const c = clientes.find(cl => cl.id === clienteId);
+    const prevProp = propuestas.find(p => p.clienteId === clienteId);
     setForm(f => ({
       ...f,
       clienteId,
@@ -87,6 +92,7 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
       clienteNit: c?.nit || '',
       clienteCiudad: c?.ciudad || '',
       clienteContacto: c?.contacto || '',
+      ...(editTarget ? {} : (prevProp ? { incluirProtocolo: prevProp.incluirProtocolo !== false } : {})),
     }));
   };
 
@@ -266,6 +272,16 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
               <span>{previewPropuesta.vigencia}</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-slate-500">Protocolo:</span>
+              <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                previewPropuesta.incluirProtocolo !== false
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-slate-100 text-slate-600'
+              }`}>
+                {previewPropuesta.incluirProtocolo !== false ? '✓ Incluido en PDF' : '⊘ Excluido del PDF'}
+              </span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-slate-500">Estado:</span>
               <span className={`text-xs px-2.5 py-0.5 rounded-full ${ESTADO_COLORS[previewPropuesta.estado]}`}>
                 {previewPropuesta.estado}
@@ -370,12 +386,22 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
                     <td className="px-4 py-3 text-slate-500 font-mono text-xs">{p.consecutivo}</td>
                     <td className="px-4 py-3 font-medium">{p.clienteNombre}</td>
                     <td className="px-4 py-3">
-                      <span
-                        className="text-xs px-2 py-0.5 rounded"
-                        style={{ background: `${t?.color || '#004A99'}22`, color: t?.color || '#004A99' }}
-                      >
-                        {t?.icono} {t ? (t.nombre.split('de ')[1] || t.nombre) : p.tipoServicioNombre}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{ background: `${t?.color || '#004A99'}22`, color: t?.color || '#004A99' }}
+                        >
+                          {t?.icono} {t ? (t.nombre.split('de ')[1] || t.nombre) : p.tipoServicioNombre}
+                        </span>
+                        {p.incluirProtocolo === false && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 font-medium"
+                            title="Esta propuesta no incluye hoja de protocolo en el PDF"
+                          >
+                            Sin protocolo
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{p.fecha}</td>
                     <td className="px-4 py-3 text-right font-semibold text-emerald-400">
@@ -737,23 +763,82 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
           </div>
         </div>
 
-        {/* RIGHT: Protocol preview */}
-        <div className="border border-[#D6E3F3] bg-[#F5F9FF] rounded-xl p-4 overflow-y-auto max-h-[520px]">
-          <div className="flex justify-between items-center mb-3">
-            <span className="text-xs uppercase tracking-wider text-[#004A99] font-bold">
-              Protocolo incluido automáticamente
-            </span>
-            {selectedTemplate && (
+        {/* RIGHT: Protocol preview & toggle */}
+        <div className={`border rounded-xl p-4 overflow-y-auto max-h-[520px] transition-all ${
+          form.incluirProtocolo !== false
+            ? 'border-[#D6E3F3] bg-[#F5F9FF]'
+            : 'border-slate-300 bg-slate-50'
+        }`}>
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wider text-[#004A99] font-bold">
+                Protocolo del Servicio
+              </span>
               <span
-                className="text-xs px-2 py-0.5 rounded-full"
+                className={`text-[11px] px-2 py-0.5 rounded-full font-semibold transition-colors ${
+                  form.incluirProtocolo !== false
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    : 'bg-slate-200 text-slate-700 border border-slate-300'
+                }`}
+              >
+                {form.incluirProtocolo !== false ? '✓ Incluido en propuesta' : '⊘ Excluido'}
+              </span>
+            </div>
+
+            {/* Botón de toggle rápido */}
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, incluirProtocolo: f.incluirProtocolo === false }))}
+              className={`text-xs px-3 py-1 rounded-lg font-semibold transition-all shadow-sm flex items-center gap-1.5 ${
+                form.incluirProtocolo !== false
+                  ? 'bg-white text-red-600 hover:bg-red-50 border border-red-200 hover:border-red-300'
+                  : 'bg-[#004A99] text-white hover:bg-[#003366]'
+              }`}
+              title={form.incluirProtocolo !== false ? 'Quitar este protocolo de la propuesta' : 'Incluir este protocolo en la propuesta'}
+            >
+              {form.incluirProtocolo !== false ? (
+                <><span>✕</span> Quitar protocolo</>
+              ) : (
+                <><span>✓</span> Incluir protocolo</>
+              )}
+            </button>
+          </div>
+
+          {selectedTemplate && (
+            <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-[#D6E3F3]">
+              <span
+                className="text-xs px-2 py-0.5 rounded-full font-medium"
                 style={{ background: `${selectedTemplate.color}22`, color: selectedTemplate.color }}
               >
                 {selectedTemplate.icono} {selectedTemplate.nombre.split('de ')[1] || selectedTemplate.nombre}
               </span>
-            )}
-          </div>
+              <span className="text-[11px] text-slate-500">
+                {form.incluirProtocolo !== false
+                  ? '📄 Se incluirá hoja en el PDF'
+                  : '🚫 Hoja de protocolo omitida en el PDF'}
+              </span>
+            </div>
+          )}
 
-          {!selectedTemplate ? (
+          {form.incluirProtocolo === false ? (
+            <div className="py-8 px-4 text-center bg-white rounded-xl border border-dashed border-slate-300 my-2">
+              <div className="w-11 h-11 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xl mb-2">
+                📋
+              </div>
+              <p className="font-semibold text-slate-800 text-sm">Protocolo desactivado para este cliente</p>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 leading-relaxed">
+                Esta propuesta <strong>no incluirá</strong> la página del protocolo operativo ni la infografía en el documento PDF.
+                Ideal para ventas de equipos, bolsa de horas o clientes que no requieren este protocolo estándar.
+              </p>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, incluirProtocolo: true }))}
+                className="mt-3.5 px-3.5 py-1.5 text-xs font-semibold text-[#004A99] bg-[#E6F0FF] hover:bg-[#D0E4FF] rounded-lg transition-colors"
+              >
+                + Volver a incluir protocolo
+              </button>
+            </div>
+          ) : !selectedTemplate ? (
             <p className="text-slate-500 text-sm">Selecciona un tipo de servicio para ver el protocolo.</p>
           ) : (
             <>
@@ -761,7 +846,7 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
               <p className="text-xs text-slate-500 mb-4 leading-relaxed">{selectedTemplate.introProtocolo}</p>
               <div className="space-y-2">
                 {selectedTemplate.pasosInfografia.map((paso, i) => (
-                  <div key={i} className="flex items-start gap-3 bg-white rounded-lg px-3 py-2">
+                  <div key={i} className="flex items-start gap-3 bg-white rounded-lg px-3 py-2 shadow-sm border border-[#EDF3FA]">
                     <span className="w-5 h-5 rounded-full bg-[#004A99] text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">
                       {i + 1}
                     </span>
@@ -772,7 +857,7 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
                   </div>
                 ))}
                 {selectedTemplate.pasosLista.map((paso, i) => (
-                  <div key={i} className="flex items-start gap-3 bg-white rounded-lg px-3 py-2">
+                  <div key={i} className="flex items-start gap-3 bg-white rounded-lg px-3 py-2 shadow-sm border border-[#EDF3FA]">
                     <span className="w-5 h-5 rounded-full bg-[#004A99] text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">
                       {selectedTemplate.pasosInfografia.length + i + 1}
                     </span>
