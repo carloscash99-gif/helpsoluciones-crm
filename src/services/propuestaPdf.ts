@@ -51,11 +51,13 @@ const addPageHeader = (doc: jsPDF, propuesta: Propuesta, pageNum: number) => {
 };
 
 export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'view' = 'save') => {
-  const template = SERVICIO_TEMPLATES.find(t => t.id === propuesta.tipoServicioId);
-  if (!template) throw new Error(`Template not found: ${propuesta.tipoServicioId}`);
+  try {
+    const template = SERVICIO_TEMPLATES.find(t => t.id === propuesta.tipoServicioId) || SERVICIO_TEMPLATES[0];
+    if (!template) throw new Error(`No se encontró plantilla de servicio para ${propuesta.tipoServicioId}`);
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const W = 210;
+    let y = 22;
 
   // ─── PAGE 1: COVER ──────────────────────────────────────────────────────────
 
@@ -142,8 +144,9 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
     doc.setFontSize(8.5);
     doc.setTextColor(...WHITE);
     doc.setFont('helvetica', 'bold');
-    const lines = doc.splitTextToSize(val, maxColW);
-    doc.text(lines[0], col, baseY + 5.5); // max 1 line with truncation
+    const textVal = String(val || '—');
+    const lines = doc.splitTextToSize(textVal, maxColW);
+    doc.text(lines[0] || textVal, col, baseY + 5.5); // max 1 line with truncation
     doc.setFont('helvetica', 'normal');
   });
 
@@ -265,7 +268,7 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
     doc.addPage();
     addPageHeader(doc, propuesta, doc.getNumberOfPages());
 
-    let y = 22;
+    y = 22;
 
     doc.setFontSize(7.5);
     doc.setTextColor(...INDIGO);
@@ -275,13 +278,13 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
 
     const customProt = propuesta.protocolo;
     const nombreProtocolo = (customProt?.nombre && customProt.nombre.trim()) || template.nombre;
-    const introProtocolo = (customProt?.intro && customProt.intro.trim()) || template.introProtocolo;
-    const pasosInfografia = customProt?.pasosInfografia !== undefined
+    const introProtocolo = (customProt?.intro && customProt.intro.trim()) || template.introProtocolo || '';
+    const pasosInfografia = (customProt?.pasosInfografia !== undefined
       ? customProt.pasosInfografia
-      : template.pasosInfografia;
-    const pasosLista = customProt?.pasosLista !== undefined
+      : template.pasosInfografia) || [];
+    const pasosLista = (customProt?.pasosLista !== undefined
       ? customProt.pasosLista
-      : template.pasosLista;
+      : template.pasosLista) || [];
 
     doc.setFontSize(14);
     doc.setTextColor(...TEXT_DARK);
@@ -290,16 +293,18 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
     y += 8;
 
     // Intro box
-    doc.setFillColor(...LIGHT_GRAY);
-    doc.rect(14, y, W - 28, 18, 'F');
-    doc.setFillColor(...INDIGO);
-    doc.rect(14, y, 1.5, 18, 'F');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...TEXT_MUTED);
-    doc.setFont('helvetica', 'normal');
-    const introLines = doc.splitTextToSize(introProtocolo, W - 34);
-    doc.text(introLines, 18, y + 6);
-    y += 24;
+    if (introProtocolo) {
+      doc.setFillColor(...LIGHT_GRAY);
+      doc.rect(14, y, W - 28, 18, 'F');
+      doc.setFillColor(...INDIGO);
+      doc.rect(14, y, 1.5, 18, 'F');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...TEXT_MUTED);
+      doc.setFont('helvetica', 'normal');
+      const introLines = doc.splitTextToSize(introProtocolo, W - 34);
+      doc.text(introLines, 18, y + 6);
+      y += 24;
+    }
 
     // Infographic grid: 3 columns × N rows
     const cardW = (W - 28 - 8) / 3;
@@ -326,29 +331,50 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
       doc.text(String(idx + 1), x + cardW / 2, cy + 8, { align: 'center' });
 
       // Emoji icon rendered via Canvas → PNG
-      const iconUrl = emojiToDataUrl(paso.icono || '📋', 64);
+      const iconUrl = emojiToDataUrl(paso?.icono || '📋', 64);
       if (iconUrl) {
-        const iconSize = 10;
-        doc.addImage(iconUrl, 'PNG', x + cardW / 2 - iconSize / 2, cy + 12, iconSize, iconSize);
+        try {
+          const iconSize = 10;
+          doc.addImage(iconUrl, 'PNG', x + cardW / 2 - iconSize / 2, cy + 12, iconSize, iconSize);
+        } catch (_) {
+          // Si falla añadir la imagen del icono no rompemos el PDF
+        }
       }
 
       doc.setFontSize(7.5);
       doc.setTextColor(...TEXT_DARK);
       doc.setFont('helvetica', 'bold');
-      doc.text(paso.titulo, x + cardW / 2, cy + 26, { align: 'center' });
+      const tituloStr = String(paso?.titulo || `Paso ${idx + 1}`);
+      const titLines = doc.splitTextToSize(tituloStr, cardW - 4);
+      doc.text(titLines[0] || tituloStr, x + cardW / 2, cy + 26, { align: 'center' });
 
       doc.setFontSize(6.2);
       doc.setTextColor(...TEXT_MUTED);
       doc.setFont('helvetica', 'normal');
-      const descLines = doc.splitTextToSize(paso.descripcion, cardW - 4);
-      doc.text(descLines, x + cardW / 2, cy + 31, { align: 'center' });
+      const descStr = String(paso?.descripcion || '');
+      const descLines = doc.splitTextToSize(descStr, cardW - 4);
+      doc.text(descLines.slice(0, 3), x + cardW / 2, cy + 31, { align: 'center' });
     });
 
     if (numRows > 0) {
       y += numRows * (cardH + 3) + 4;
     }
 
-    pasosLista.forEach((paso, idx) => {
+    pasosLista.forEach((rawPaso, idx) => {
+      const pasoStr = typeof rawPaso === 'string'
+        ? rawPaso
+        : (rawPaso && typeof rawPaso === 'object' && (rawPaso as any).descripcion)
+        ? String((rawPaso as any).descripcion)
+        : String(rawPaso || '');
+
+      if (!pasoStr.trim()) return;
+
+      if (y > 275) {
+        doc.addPage();
+        addPageHeader(doc, propuesta, doc.getNumberOfPages());
+        y = 22;
+      }
+
       doc.setFillColor(...LIGHT_GRAY);
       doc.rect(14, y, W - 28, 8, 'F');
       doc.setFillColor(...INDIGO);
@@ -360,8 +386,12 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
       doc.setFontSize(8.5);
       doc.setTextColor(...TEXT_DARK);
       doc.setFont('helvetica', 'normal');
-      const txt = paso.replace(/de Cinemark/gi, `de ${propuesta.clienteNombre}`).replace(/del cliente/gi, `de ${propuesta.clienteNombre}`).replace(/el cliente/gi, propuesta.clienteNombre);
-      doc.text(txt, 26, y + 5.2);
+      const txt = pasoStr
+        .replace(/de Cinemark/gi, `de ${propuesta.clienteNombre || 'el cliente'}`)
+        .replace(/del cliente/gi, `de ${propuesta.clienteNombre || 'el cliente'}`)
+        .replace(/el cliente/gi, propuesta.clienteNombre || 'el cliente');
+      const txtLines = doc.splitTextToSize(txt, W - 44);
+      doc.text(txtLines[0] || txt, 26, y + 5.2);
       y += 10;
     });
   }
@@ -422,7 +452,9 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
 
     ySla = (doc as any).lastAutoTable.finalY + 8;
 
-    const slaNotes = slaNotasBase.filter(n => n.trim()).map(n => `• ${n.trim()}`);
+    const slaNotes = (slaNotasBase || [])
+      .filter(n => typeof n === 'string' && n.trim().length > 0)
+      .map(n => `• ${n.trim()}`);
     const PAGE_BOTTOM = doc.internal.pageSize.getHeight() - 18;
 
     if (slaNotes.length > 0) {
@@ -464,17 +496,17 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
   doc.text('Tabla de Inversión', 14, y);
   y += 6;
 
-  const itemsConValor = propuesta.items.filter(it => it.valorUnitario > 0);
-  const subtotal = itemsConValor.reduce((s, it) => s + it.cantidad * it.valorUnitario, 0);
+  const itemsConValor = (propuesta.items || []).filter(it => (it.valorUnitario || 0) > 0);
+  const subtotal = itemsConValor.reduce((s, it) => s + (it.cantidad || 0) * (it.valorUnitario || 0), 0);
   const iva = propuesta.incluyeIva ? Math.round(subtotal * 0.19) : 0;
   const total = subtotal + iva;
 
   const tableBody: (string | { content: string; colSpan?: number; styles?: object })[][] =
     itemsConValor.map(it => [
-      { content: it.descripcion + (it.numPart ? `\nRef: ${it.numPart}` : ''), styles: { fontSize: 8.5 } },
-      String(it.cantidad),
-      formatCurrency(it.valorUnitario, propuesta.moneda),
-      formatCurrency(it.cantidad * it.valorUnitario, propuesta.moneda),
+      { content: (it.descripcion || '') + (it.numPart ? `\nRef: ${it.numPart}` : ''), styles: { fontSize: 8.5 } },
+      String(it.cantidad || 1),
+      formatCurrency(it.valorUnitario || 0, propuesta.moneda),
+      formatCurrency((it.cantidad || 1) * (it.valorUnitario || 0), propuesta.moneda),
     ]);
 
   if (itemsConValor.length === 0) {
@@ -560,15 +592,18 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
   const sigW = (W - 28 - 10) / 3;
   const initials = (propuesta.comercialNombre || 'EC')
     .split(' ')
+    .filter(Boolean)
     .map((n: string) => n[0])
     .join('')
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || 'EC';
+
+  const clientInitial = ((propuesta.clienteNombre || 'C').trim()[0] || 'C').toUpperCase();
 
   const sigDefs = [
     { title: 'Help Soluciones\nInformáticas', subtitle: 'Representante Legal', avatarColor: DARK_BLUE as [number, number, number], avatarText: 'H' },
     { title: propuesta.comercialNombre || 'Ejecutivo Comercial', subtitle: `Asesor de la Propuesta\n${propuesta.comercialTelefono || ''}`, avatarColor: INDIGO as [number, number, number], avatarText: initials },
-    { title: propuesta.clienteNombre, subtitle: 'Cliente — Aceptación', avatarColor: [226, 232, 240] as [number, number, number], avatarText: (propuesta.clienteNombre[0] || 'C').toUpperCase() },
+    { title: propuesta.clienteNombre || 'Cliente', subtitle: 'Cliente — Aceptación', avatarColor: [226, 232, 240] as [number, number, number], avatarText: clientInitial },
   ];
 
   sigDefs.forEach((sig, i) => {
@@ -600,7 +635,16 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
 
   // ─── OUTPUT ─────────────────────────────────────────────────────────────────
 
-  const filename = `Propuesta-${propuesta.consecutivo}-${propuesta.clienteNombre.replace(/\s+/g, '_')}.pdf`;
+  const safeClient = (propuesta.clienteNombre || 'Cliente')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[/\\?%*:|"<>,\.]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .slice(0, 40)
+    .replace(/_+$/, '');
+  const filename = `Propuesta-${propuesta.consecutivo || 'P'}-${safeClient}.pdf`;
+
   if (action === 'view') {
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
@@ -608,4 +652,11 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
   } else {
     doc.save(filename);
   }
+} catch (err: any) {
+  console.error('Error generando PDF de la propuesta:', err);
+  if (typeof window !== 'undefined') {
+    alert(`No fue posible generar el PDF: ${err?.message || 'Error inesperado'}`);
+  }
+  throw err;
+}
 };

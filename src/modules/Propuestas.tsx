@@ -201,16 +201,21 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
     if (!validate()) return;
     setSaving(true);
     const payload = { ...form, estado: 'Enviada' as const };
-    if (editTarget) {
-      await onUpdate({ ...editTarget, ...payload });
-      generatePropuestaPDF({ ...editTarget, ...payload }, 'save');
-    } else {
-      await onAdd(payload);
-      // Use temp object for PDF since we don't have the DB-assigned id/consecutivo yet
-      generatePropuestaPDF({ id: 'temp', consecutivo: 'P-???', ...payload }, 'save');
+    try {
+      if (editTarget) {
+        await onUpdate({ ...editTarget, ...payload });
+        generatePropuestaPDF({ ...editTarget, ...payload }, 'save');
+      } else {
+        await onAdd(payload);
+        // Use temp object for PDF since we don't have the DB-assigned id/consecutivo yet
+        generatePropuestaPDF({ id: 'temp', consecutivo: 'P-???', ...payload }, 'save');
+      }
+      setView('list');
+    } catch (err: any) {
+      console.error('Error generando o guardando la propuesta:', err);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setView('list');
   };
 
   const handlePreview = () => {
