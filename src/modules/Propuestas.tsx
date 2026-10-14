@@ -295,6 +295,31 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
     setForm(f => ({ ...f, protocolo: base }));
   };
 
+  const moverListaATarjeta = (idx: number) => {
+    const base = getBaseProtocolo();
+    const texto = base.pasosLista[idx] || '';
+    base.pasosLista = base.pasosLista.filter((_, i) => i !== idx);
+    const partes = texto.split(':');
+    const titulo = partes.length > 1 ? partes[0].trim() : (texto.length > 30 ? texto.slice(0, 28) + '...' : texto);
+    const descripcion = partes.length > 1 ? partes.slice(1).join(':').trim() : texto;
+    base.pasosInfografia.push({
+      icono: '📌',
+      titulo: titulo || 'Nuevo Punto',
+      descripcion: descripcion || texto,
+    });
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
+  const moverTarjetaALista = (idx: number) => {
+    const base = getBaseProtocolo();
+    const card = base.pasosInfografia[idx];
+    if (!card) return;
+    base.pasosInfografia = base.pasosInfografia.filter((_, i) => i !== idx);
+    const textoCompleto = card.titulo && card.descripcion ? `${card.titulo}: ${card.descripcion}` : (card.titulo || card.descripcion);
+    base.pasosLista.push(textoCompleto);
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
   const updateIntroProtocolo = (text: string) => {
     const base = getBaseProtocolo();
     base.intro = text;
@@ -1009,23 +1034,33 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
                               value={paso.titulo}
                               onChange={e => updatePasoInfografia(i, { titulo: e.target.value })}
                               placeholder="Título del punto"
-                              className="font-semibold text-slate-800 text-xs w-full border-b border-transparent hover:border-slate-200 focus:border-[#004A99] focus:outline-none px-1 py-0.5 rounded bg-transparent focus:bg-white transition-all"
+                              className="font-semibold text-slate-800 text-xs w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#004A99] focus:outline-none px-2 py-1 rounded transition-all"
                             />
-                            <button
-                              type="button"
-                              onClick={() => removePasoInfografia(i)}
-                              className="text-slate-400 hover:text-red-600 px-1.5 py-0.5 rounded hover:bg-red-50 text-xs transition-colors flex-shrink-0 font-medium"
-                              title="Quitar este punto del protocolo"
-                            >
-                              ✕ Quitar
-                            </button>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => moverTarjetaALista(i)}
+                                className="!bg-slate-100 hover:!bg-slate-200 !text-slate-600 px-1.5 py-1 rounded text-[11px] font-medium transition-colors border border-slate-200"
+                                title="Mover este punto a las especificaciones adicionales de abajo"
+                              >
+                                ⬇ A lista
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removePasoInfografia(i)}
+                                className="!bg-red-50 hover:!bg-red-100 !text-red-600 px-2 py-1 rounded text-xs transition-colors font-medium border border-red-200"
+                                title="Quitar este punto del protocolo"
+                              >
+                                ✕ Quitar
+                              </button>
+                            </div>
                           </div>
                           <textarea
                             value={paso.descripcion}
                             onChange={e => updatePasoInfografia(i, { descripcion: e.target.value })}
                             rows={2}
                             placeholder="Descripción de la actividad..."
-                            className="text-[11px] text-slate-600 w-full border border-transparent hover:border-slate-200 focus:border-slate-300 focus:outline-none px-1.5 py-1 rounded bg-transparent focus:bg-white transition-all resize-none leading-relaxed"
+                            className="text-xs text-slate-700 w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#004A99] focus:outline-none p-1.5 rounded transition-all resize-none leading-relaxed"
                           />
                         </div>
                       </div>
@@ -1034,41 +1069,58 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
                 )}
               </div>
 
-              {/* Especificaciones adicionales (pasosLista) */}
-              <div className="mt-3 pt-3 border-t border-[#D6E3F3]">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                    Especificaciones Adicionales ({activePasosLista.length})
-                  </span>
+              {/* Especificaciones adicionales (pasosLista: puntos a partir del 6) */}
+              <div className="mt-4 pt-3 border-t border-[#D6E3F3]">
+                <div className="flex justify-between items-center mb-2.5">
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                      Compromisos y Especificaciones Adicionales ({activePasosLista.length})
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Puntos numerados complementarios incluidos en el protocolo
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={addPasoLista}
-                    className="text-xs font-semibold text-[#004A99] hover:underline"
+                    className="!bg-[#E6F0FF] hover:!bg-[#D0E4FF] !text-[#004A99] text-xs font-semibold px-2.5 py-1 rounded-lg border border-[#004A99]/20 transition-colors shadow-2xs"
                   >
                     + Agregar ítem
                   </button>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {activePasosLista.map((paso, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 border border-[#EDF3FA] shadow-xs">
-                      <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center font-bold flex-shrink-0">
-                        {activePasosInfografia.length + i + 1}
-                      </span>
-                      <input
-                        type="text"
-                        value={paso}
-                        onChange={e => updatePasoLista(i, e.target.value)}
-                        className="text-xs text-slate-700 flex-1 border-0 focus:outline-none focus:ring-0 bg-transparent px-1"
-                        placeholder="Compromiso o condición adicional..."
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removePasoLista(i)}
-                        className="text-slate-400 hover:text-red-500 text-xs px-1.5 py-0.5 rounded hover:bg-red-50"
-                        title="Quitar este ítem"
-                      >
-                        ✕
-                      </button>
+                    <div key={i} className="bg-white rounded-lg p-2 border border-[#D6E3F3] shadow-2xs hover:border-[#004A99]/40 transition-all">
+                      <div className="flex items-start gap-2">
+                        <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center font-bold flex-shrink-0 mt-1">
+                          {activePasosInfografia.length + i + 1}
+                        </span>
+                        <textarea
+                          value={paso}
+                          onChange={e => updatePasoLista(i, e.target.value)}
+                          rows={2}
+                          className="text-xs text-slate-800 flex-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#004A99] focus:outline-none rounded-md p-1.5 leading-relaxed resize-none transition-all"
+                          placeholder="Compromiso o condición adicional..."
+                        />
+                        <div className="flex flex-col gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => removePasoLista(i)}
+                            className="!bg-red-50 hover:!bg-red-100 !text-red-600 text-xs px-2 py-1 rounded border border-red-200 font-medium transition-colors"
+                            title="Quitar esta especificación"
+                          >
+                            ✕ Quitar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moverListaATarjeta(i)}
+                            className="!bg-[#E6F0FF] hover:!bg-[#D0E4FF] !text-[#004A99] text-[10px] px-1.5 py-0.5 rounded border border-[#004A99]/20 font-medium transition-colors text-center"
+                            title="Convertir esta especificación en una tarjeta principal con icono"
+                          >
+                            ⬆ A tarjeta
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
