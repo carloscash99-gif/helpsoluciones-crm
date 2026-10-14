@@ -273,10 +273,20 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
     doc.text('ALCANCE DEL SERVICIO', 14, y);
     y += 6;
 
+    const customProt = propuesta.protocolo;
+    const nombreProtocolo = (customProt?.nombre && customProt.nombre.trim()) || template.nombre;
+    const introProtocolo = (customProt?.intro && customProt.intro.trim()) || template.introProtocolo;
+    const pasosInfografia = customProt?.pasosInfografia !== undefined
+      ? customProt.pasosInfografia
+      : template.pasosInfografia;
+    const pasosLista = customProt?.pasosLista !== undefined
+      ? customProt.pasosLista
+      : template.pasosLista;
+
     doc.setFontSize(14);
     doc.setTextColor(...TEXT_DARK);
     doc.setFont('helvetica', 'bold');
-    doc.text('Protocolo de ' + template.nombre, 14, y);
+    doc.text('Protocolo de ' + nombreProtocolo, 14, y);
     y += 8;
 
     // Intro box
@@ -287,14 +297,16 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
     doc.setFontSize(8.5);
     doc.setTextColor(...TEXT_MUTED);
     doc.setFont('helvetica', 'normal');
-    const introLines = doc.splitTextToSize(template.introProtocolo, W - 34);
+    const introLines = doc.splitTextToSize(introProtocolo, W - 34);
     doc.text(introLines, 18, y + 6);
     y += 24;
 
-    // Infographic grid: 3 columns × 2 rows
+    // Infographic grid: 3 columns × N rows
     const cardW = (W - 28 - 8) / 3;
     const cardH = 38;
-    template.pasosInfografia.forEach((paso, idx) => {
+    const numRows = Math.ceil(pasosInfografia.length / 3);
+
+    pasosInfografia.forEach((paso, idx) => {
       const col = idx % 3;
       const row = Math.floor(idx / 3);
       const x = 14 + col * (cardW + 4);
@@ -314,7 +326,7 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
       doc.text(String(idx + 1), x + cardW / 2, cy + 8, { align: 'center' });
 
       // Emoji icon rendered via Canvas → PNG
-      const iconUrl = emojiToDataUrl(paso.icono, 64);
+      const iconUrl = emojiToDataUrl(paso.icono || '📋', 64);
       if (iconUrl) {
         const iconSize = 10;
         doc.addImage(iconUrl, 'PNG', x + cardW / 2 - iconSize / 2, cy + 12, iconSize, iconSize);
@@ -332,9 +344,11 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
       doc.text(descLines, x + cardW / 2, cy + 31, { align: 'center' });
     });
 
-    y += 2 * (cardH + 3) + 4;
+    if (numRows > 0) {
+      y += numRows * (cardH + 3) + 4;
+    }
 
-    template.pasosLista.forEach((paso, idx) => {
+    pasosLista.forEach((paso, idx) => {
       doc.setFillColor(...LIGHT_GRAY);
       doc.rect(14, y, W - 28, 8, 'F');
       doc.setFillColor(...INDIGO);
@@ -342,7 +356,7 @@ export const generatePropuestaPDF = (propuesta: Propuesta, action: 'save' | 'vie
       doc.setFontSize(7);
       doc.setTextColor(...WHITE);
       doc.setFont('helvetica', 'bold');
-      doc.text(String(template.pasosInfografia.length + idx + 1), 20, y + 5.5, { align: 'center' });
+      doc.text(String(pasosInfografia.length + idx + 1), 20, y + 5.5, { align: 'center' });
       doc.setFontSize(8.5);
       doc.setTextColor(...TEXT_DARK);
       doc.setFont('helvetica', 'normal');

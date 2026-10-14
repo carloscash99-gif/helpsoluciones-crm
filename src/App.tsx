@@ -373,6 +373,19 @@ export interface PropuestaSlas {
   fuente?: string;        // nombre del RFP / sección de donde se importaron
 }
 
+export interface PasoInfografia {
+  icono: string;
+  titulo: string;
+  descripcion: string;
+}
+
+export interface ProtocoloData {
+  nombre?: string;
+  intro?: string;
+  pasosInfografia: PasoInfografia[];
+  pasosLista: string[];
+}
+
 export interface Propuesta {
   id: string;
   consecutivo: string;
@@ -396,6 +409,7 @@ export interface Propuesta {
   obligacionesCliente: string[];
   slas?: PropuestaSlas | null;  // solo Mesa de Ayuda; null = SLA estándar
   incluirProtocolo?: boolean;   // true = incluye hoja/infografía de protocolo, false = sin protocolo
+  protocolo?: ProtocoloData | null; // puntos y textos personalizados del protocolo
   estado: 'Borrador' | 'Enviada' | 'Aceptada';
   comercialNombre: string;
   comercialTelefono: string;
@@ -705,6 +719,14 @@ function App() {
             ? Boolean(p.incluir_protocolo)
             : !sinProtocoloEnObs;
 
+          const rawSlas = p.slas;
+          const customProtocolo = p.protocolo || (rawSlas && rawSlas.__customProtocolo) || null;
+          let cleanSlas = rawSlas;
+          if (rawSlas && typeof rawSlas === 'object' && rawSlas.__customProtocolo) {
+            const { __customProtocolo: _, ...rest } = rawSlas;
+            cleanSlas = Object.keys(rest).length > 0 ? rest : null;
+          }
+
           return {
             id: p.id,
             consecutivo: p.consecutivo,
@@ -730,8 +752,9 @@ function App() {
             personal: p.personal || [],
             visitas: p.visitas || [],
             obligacionesCliente: p.obligaciones_cliente || [],
-            slas: p.slas || null,
+            slas: cleanSlas,
             incluirProtocolo: incProt,
+            protocolo: customProtocolo,
           } as Propuesta;
         }));
       }
@@ -1923,6 +1946,11 @@ function App() {
     const incProt = p.incluirProtocolo !== false;
     let baseObs = (p.observaciones || '').replace(/\s*<!--HS_NO_PROTOCOLO-->\s*/g, '');
 
+    const slasPayload = p.slas ? { ...p.slas } : {};
+    if (p.protocolo) {
+      (slasPayload as any).__customProtocolo = p.protocolo;
+    }
+
     const insertPayload: any = {
       consecutivo,
       fecha: p.fecha,
@@ -1947,17 +1975,19 @@ function App() {
       personal: p.personal || [],
       visitas: p.visitas || [],
       obligaciones_cliente: p.obligacionesCliente || [],
-      slas: p.slas || null,
+      slas: Object.keys(slasPayload).length > 0 ? slasPayload : null,
+      protocolo: p.protocolo || null,
       incluir_protocolo: incProt,
     };
 
     let { data, error } = await supabase.from('propuestas').insert([insertPayload]).select();
 
-    // Si la columna incluir_protocolo aún no existe en Supabase (error 42703), reintenta sin esa columna
-    if (error && (error.code === '42703' || error.message?.includes('incluir_protocolo'))) {
-      delete insertPayload.incluir_protocolo;
-      if (!incProt) {
-        insertPayload.observaciones = `${baseObs} <!--HS_NO_PROTOCOLO-->`.trim();
+    // Reintento si alguna columna opcional no existe en Supabase (error 42703)
+    if (error && (error.code === '42703' || error.message?.includes('incluir_protocolo') || error.message?.includes('protocolo'))) {
+      if (error.message?.includes('protocolo') || error.code === '42703') delete insertPayload.protocolo;
+      if (error.message?.includes('incluir_protocolo') || error.code === '42703') {
+        delete insertPayload.incluir_protocolo;
+        if (!incProt) insertPayload.observaciones = `${baseObs} <!--HS_NO_PROTOCOLO-->`.trim();
       }
       const retry = await supabase.from('propuestas').insert([insertPayload]).select();
       data = retry.data;
@@ -1986,8 +2016,9 @@ function App() {
         personal: dbP.personal || [],
         visitas: dbP.visitas || [],
         obligacionesCliente: dbP.obligaciones_cliente || [],
-        slas: dbP.slas || null,
+        slas: p.slas || null,
         incluirProtocolo: incProt,
+        protocolo: p.protocolo || null,
       } as Propuesta, ...prev]);
       alert(`Propuesta ${dbP.consecutivo} guardada correctamente.`);
     }
@@ -1997,6 +2028,11 @@ function App() {
     if (IS_DEMO) { setPropuestas(prev => prev.map(i => i.id === p.id ? p : i)); return; }
     const incProt = p.incluirProtocolo !== false;
     let baseObs = (p.observaciones || '').replace(/\s*<!--HS_NO_PROTOCOLO-->\s*/g, '');
+
+    const slasPayload = p.slas ? { ...p.slas } : {};
+    if (p.protocolo) {
+      (slasPayload as any).__customProtocolo = p.protocolo;
+    }
 
     const updatePayload: any = {
       fecha: p.fecha,
@@ -2014,24 +2050,26 @@ function App() {
       personal: p.personal || [],
       visitas: p.visitas || [],
       obligaciones_cliente: p.obligacionesCliente || [],
-      slas: p.slas || null,
+      slas: Object.keys(slasPayload).length > 0 ? slasPayload : null,
+      protocolo: p.protocolo || null,
       incluir_protocolo: incProt,
     };
 
     let { error } = await supabase.from('propuestas').update(updatePayload).eq('id', p.id);
 
-    // Si la columna incluir_protocolo aún no existe en Supabase (error 42703), reintenta sin esa columna
-    if (error && (error.code === '42703' || error.message?.includes('incluir_protocolo'))) {
-      delete updatePayload.incluir_protocolo;
-      if (!incProt) {
-        updatePayload.observaciones = `${baseObs} <!--HS_NO_PROTOCOLO-->`.trim();
+    // Reintento si alguna columna opcional no existe en Supabase (error 42703)
+    if (error && (error.code === '42703' || error.message?.includes('incluir_protocolo') || error.message?.includes('protocolo'))) {
+      if (error.message?.includes('protocolo') || error.code === '42703') delete updatePayload.protocolo;
+      if (error.message?.includes('incluir_protocolo') || error.code === '42703') {
+        delete updatePayload.incluir_protocolo;
+        if (!incProt) updatePayload.observaciones = `${baseObs} <!--HS_NO_PROTOCOLO-->`.trim();
       }
       const retry = await supabase.from('propuestas').update(updatePayload).eq('id', p.id);
       error = retry.error;
     }
 
     if (error) { alert('Error al actualizar propuesta: ' + error.message); return; }
-    setPropuestas(prev => prev.map(item => item.id === p.id ? { ...p, observaciones: baseObs, incluirProtocolo: incProt } : item));
+    setPropuestas(prev => prev.map(item => item.id === p.id ? { ...p, observaciones: baseObs, incluirProtocolo: incProt, protocolo: p.protocolo || null } : item));
   };
 
   const deletePropuesta = async (id: string) => {

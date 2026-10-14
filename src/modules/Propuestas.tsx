@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Cliente, Propuesta, PropuestaItem, AppUser, Producto } from '../App';
+import type { Cliente, Propuesta, PropuestaItem, AppUser, Producto, PasoInfografia, ProtocoloData } from '../App';
 import SlaEditor from '../components/SlaEditor';
 import { SERVICIO_TEMPLATES } from '../data/servicioTemplates';
 import { generatePropuestaPDF } from '../services/propuestaPdf';
@@ -47,6 +47,7 @@ const makeEmpty = (currentUser: AppUser): Omit<Propuesta, 'id' | 'consecutivo'> 
     'Cumplir con los plazos acordados.',
   ],
   incluirProtocolo: true,
+  protocolo: null,
   estado: 'Borrador',
   comercialNombre: currentUser.nombre,
   comercialTelefono: currentUser.telefono || '',
@@ -77,6 +78,7 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
     setForm({
       ...rest,
       incluirProtocolo: p.incluirProtocolo !== false,
+      protocolo: p.protocolo || null,
     });
     setItemSearches({});
     setView('form');
@@ -98,11 +100,19 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
 
   const handleServicioChange = (id: string) => {
     const t = SERVICIO_TEMPLATES.find(t => t.id === id);
+    const defaultProtocolo: ProtocoloData | null = t ? {
+      nombre: t.nombre,
+      intro: t.introProtocolo,
+      pasosInfografia: t.pasosInfografia.map(p => ({ ...p })),
+      pasosLista: [...t.pasosLista],
+    } : null;
+
     if (id === 'mesa-de-ayuda') {
       setForm(f => ({
         ...f,
         tipoServicioId: id,
         tipoServicioNombre: t?.nombre || '',
+        protocolo: defaultProtocolo,
         objetivo: 'El objetivo de la presente propuesta es establecer una alianza estratégica para garantizar la continuidad operativa de la plataforma tecnológica de la compañía mediante el suministro de un servicio integral de Mesa de Ayuda (Help Desk). Nuestra solución combina personal técnico especializado, un riguroso plan de mantenimientos preventivos y correctivos anuales, soporte técnico con un esquema híbrido de 3 días presenciales en su sede y 2 días de forma remota, junto con soporte en tiempo real para incidentes críticos. Todo gestionado bajo estrictos Acuerdos de Niveles de Servicio (SLA) a través de nuestra plataforma digital, con el fin de minimizar la inactividad y potenciar la productividad operativa de sus colaboradores.',
         observaciones: 'Resumen del Aplicativo de Mesa de Ayuda:\n• Canal de Reporte Oficial: Portal Web (helpsoluciones.com.co/soportetecnico/index.php) activo 24/7 para registro de tickets.\n• Niveles de Servicio (SLA Nivel 1):\n  - Crítica (Falla total): Respuesta <= 15 min / Solución <= 2h\n  - Alta (Bloqueos/Sin internet): Respuesta <= 30 min / Solución <= 4h\n  - Media (Lentitud/Periféricos): Respuesta <= 1h / Solución <= 12h\n  - Baja (Dudas/Consultas): Respuesta <= 2h / Solución <= 48h\n• Garantía Operativa: Préstamo de hasta 2 equipos de cómputo de backup en caso de superar tiempos de solución en criticidad alta/crítica.'
       }));
@@ -111,11 +121,17 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
         ...f,
         tipoServicioId: id,
         tipoServicioNombre: 'Técnico Inhouse (Outsourcing IT) - Nivel 1',
+        protocolo: defaultProtocolo,
         objetivo: 'Proveer un técnico en sitio perfil Nivel 1 (Soporte Técnico Básico y Help Desk) de manera exclusiva, garantizando la continuidad operativa y atención inmediata a los incidentes reportados por los usuarios de la sede.',
         visitas: [{ id: crypto.randomUUID(), sede: 'Sede Principal (Inhouse)', horario: 'Lunes a Viernes de 8:00 AM a 5:00 PM' }]
       }));
     } else {
-      setForm(f => ({ ...f, tipoServicioId: id, tipoServicioNombre: t?.nombre || '' }));
+      setForm(f => ({
+        ...f,
+        tipoServicioId: id,
+        tipoServicioNombre: t?.nombre || '',
+        protocolo: defaultProtocolo,
+      }));
     }
   };
   const calcTotal = (items: PropuestaItem[], incluyeIva: boolean) => {
@@ -218,6 +234,87 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
 
   const selectedTemplate = SERVICIO_TEMPLATES.find(t => t.id === form.tipoServicioId);
   const fmtCOP = (n: number) => `$${Math.round(n).toLocaleString('es-CO')}`;
+
+  // Protocolo activo: personalizado o del template estándar
+  const activePasosInfografia: PasoInfografia[] = form.protocolo?.pasosInfografia
+    ?? selectedTemplate?.pasosInfografia
+    ?? [];
+
+  const activePasosLista: string[] = form.protocolo?.pasosLista
+    ?? selectedTemplate?.pasosLista
+    ?? [];
+
+  const activeIntro: string = form.protocolo?.intro
+    ?? selectedTemplate?.introProtocolo
+    ?? '';
+
+  const getBaseProtocolo = (): ProtocoloData => ({
+    nombre: form.protocolo?.nombre || selectedTemplate?.nombre || '',
+    intro: activeIntro,
+    pasosInfografia: activePasosInfografia.map(p => ({ ...p })),
+    pasosLista: [...activePasosLista],
+  });
+
+  const updatePasoInfografia = (idx: number, changes: Partial<PasoInfografia>) => {
+    const base = getBaseProtocolo();
+    base.pasosInfografia = base.pasosInfografia.map((p, i) => i === idx ? { ...p, ...changes } : p);
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
+  const removePasoInfografia = (idx: number) => {
+    const base = getBaseProtocolo();
+    base.pasosInfografia = base.pasosInfografia.filter((_, i) => i !== idx);
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
+  const addPasoInfografia = () => {
+    const base = getBaseProtocolo();
+    base.pasosInfografia.push({
+      icono: '🔧',
+      titulo: 'Nuevo Punto',
+      descripcion: 'Detalle de la actividad o alcance específico para este cliente.',
+    });
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
+  const updatePasoLista = (idx: number, text: string) => {
+    const base = getBaseProtocolo();
+    base.pasosLista = base.pasosLista.map((item, i) => i === idx ? text : item);
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
+  const removePasoLista = (idx: number) => {
+    const base = getBaseProtocolo();
+    base.pasosLista = base.pasosLista.filter((_, i) => i !== idx);
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
+  const addPasoLista = () => {
+    const base = getBaseProtocolo();
+    base.pasosLista.push('Nuevo compromiso o alcance del servicio.');
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
+  const updateIntroProtocolo = (text: string) => {
+    const base = getBaseProtocolo();
+    base.intro = text;
+    setForm(f => ({ ...f, protocolo: base }));
+  };
+
+  const resetProtocoloToDefault = () => {
+    if (!selectedTemplate) return;
+    if (window.confirm('¿Restaurar los puntos del protocolo al estándar original de este servicio?')) {
+      setForm(f => ({
+        ...f,
+        protocolo: {
+          nombre: selectedTemplate.nombre,
+          intro: selectedTemplate.introProtocolo,
+          pasosInfografia: selectedTemplate.pasosInfografia.map(p => ({ ...p })),
+          pasosLista: [...selectedTemplate.pasosLista],
+        },
+      }));
+    }
+  };
 
   // ── PREVIEW MODAL (shared between list and form views) ──────────────────────
   const PreviewModal = () => {
@@ -763,14 +860,14 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
           </div>
         </div>
 
-        {/* RIGHT: Protocol preview & toggle */}
-        <div className={`border rounded-xl p-4 overflow-y-auto max-h-[520px] transition-all ${
+        {/* RIGHT: Protocol preview & interactive point editor */}
+        <div className={`border rounded-xl p-4 overflow-y-auto max-h-[560px] transition-all ${
           form.incluirProtocolo !== false
             ? 'border-[#D6E3F3] bg-[#F5F9FF]'
             : 'border-slate-300 bg-slate-50'
         }`}>
           <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs uppercase tracking-wider text-[#004A99] font-bold">
                 Protocolo del Servicio
               </span>
@@ -781,27 +878,39 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
                     : 'bg-slate-200 text-slate-700 border border-slate-300'
                 }`}
               >
-                {form.incluirProtocolo !== false ? '✓ Incluido en propuesta' : '⊘ Excluido'}
+                {form.incluirProtocolo !== false ? `✓ Incluido (${activePasosInfografia.length} puntos)` : '⊘ Excluido'}
               </span>
             </div>
 
-            {/* Botón de toggle rápido */}
-            <button
-              type="button"
-              onClick={() => setForm(f => ({ ...f, incluirProtocolo: f.incluirProtocolo === false }))}
-              className={`text-xs px-3 py-1 rounded-lg font-semibold transition-all shadow-sm flex items-center gap-1.5 ${
-                form.incluirProtocolo !== false
-                  ? 'bg-white text-red-600 hover:bg-red-50 border border-red-200 hover:border-red-300'
-                  : 'bg-[#004A99] text-white hover:bg-[#003366]'
-              }`}
-              title={form.incluirProtocolo !== false ? 'Quitar este protocolo de la propuesta' : 'Incluir este protocolo en la propuesta'}
-            >
-              {form.incluirProtocolo !== false ? (
-                <><span>✕</span> Quitar protocolo</>
-              ) : (
-                <><span>✓</span> Incluir protocolo</>
+            {/* Acciones principales del protocolo */}
+            <div className="flex items-center gap-2">
+              {selectedTemplate && form.incluirProtocolo !== false && (
+                <button
+                  type="button"
+                  onClick={resetProtocoloToDefault}
+                  className="text-[11px] text-slate-500 hover:text-[#004A99] hover:underline px-1.5 py-0.5"
+                  title="Restaurar los puntos originales de este servicio"
+                >
+                  ↺ Restaurar estándar
+                </button>
               )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, incluirProtocolo: f.incluirProtocolo === false }))}
+                className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all shadow-sm flex items-center gap-1.5 ${
+                  form.incluirProtocolo !== false
+                    ? 'bg-white text-red-600 hover:bg-red-50 border border-red-200 hover:border-red-300'
+                    : 'bg-[#004A99] text-white hover:bg-[#003366]'
+                }`}
+                title={form.incluirProtocolo !== false ? 'Quitar la hoja completa de protocolo' : 'Incluir la hoja de protocolo'}
+              >
+                {form.incluirProtocolo !== false ? (
+                  <><span>✕</span> Omitir protocolo</>
+                ) : (
+                  <><span>✓</span> Incluir protocolo</>
+                )}
+              </button>
+            </div>
           </div>
 
           {selectedTemplate && (
@@ -814,7 +923,7 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
               </span>
               <span className="text-[11px] text-slate-500">
                 {form.incluirProtocolo !== false
-                  ? '📄 Se incluirá hoja en el PDF'
+                  ? '💡 Haz clic en los textos para editar o usa ✕ para quitar puntos'
                   : '🚫 Hoja de protocolo omitida en el PDF'}
               </span>
             </div>
@@ -827,8 +936,8 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
               </div>
               <p className="font-semibold text-slate-800 text-sm">Protocolo desactivado para este cliente</p>
               <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 leading-relaxed">
-                Esta propuesta <strong>no incluirá</strong> la página del protocolo operativo ni la infografía en el documento PDF.
-                Ideal para ventas de equipos, bolsa de horas o clientes que no requieren este protocolo estándar.
+                Esta propuesta <strong>no incluirá</strong> la página del protocolo operativo ni la infografía en el PDF.
+                Ideal para compras directas de equipos o clientes con protocolos propios.
               </p>
               <button
                 type="button"
@@ -839,36 +948,136 @@ const PropuestasModule: React.FC<IProps> = ({ propuestas, clientes, productos, c
               </button>
             </div>
           ) : !selectedTemplate ? (
-            <p className="text-slate-500 text-sm">Selecciona un tipo de servicio para ver el protocolo.</p>
+            <p className="text-slate-500 text-sm">Selecciona un tipo de servicio para ver y editar el protocolo.</p>
           ) : (
-            <>
-              <p className="font-semibold text-slate-800 mb-2 text-sm">{selectedTemplate.nombre}</p>
-              <p className="text-xs text-slate-500 mb-4 leading-relaxed">{selectedTemplate.introProtocolo}</p>
-              <div className="space-y-2">
-                {selectedTemplate.pasosInfografia.map((paso, i) => (
-                  <div key={i} className="flex items-start gap-3 bg-white rounded-lg px-3 py-2 shadow-sm border border-[#EDF3FA]">
-                    <span className="w-5 h-5 rounded-full bg-[#004A99] text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">
-                      {i + 1}
-                    </span>
-                    <div>
-                      <span className="text-xs font-semibold text-slate-800">{paso.titulo}</span>
-                      <p className="text-xs text-slate-500">{paso.descripcion}</p>
-                    </div>
-                  </div>
-                ))}
-                {selectedTemplate.pasosLista.map((paso, i) => (
-                  <div key={i} className="flex items-start gap-3 bg-white rounded-lg px-3 py-2 shadow-sm border border-[#EDF3FA]">
-                    <span className="w-5 h-5 rounded-full bg-[#004A99] text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">
-                      {selectedTemplate.pasosInfografia.length + i + 1}
-                    </span>
-                    <span className="text-xs text-slate-700">{paso}</span>
-                  </div>
-                ))}
+            <div className="space-y-3">
+              {/* Título e introducción editable */}
+              <div>
+                <p className="font-semibold text-slate-800 text-sm mb-1">{form.protocolo?.nombre || selectedTemplate.nombre}</p>
+                <textarea
+                  value={activeIntro}
+                  onChange={e => updateIntroProtocolo(e.target.value)}
+                  rows={2}
+                  placeholder="Texto introductorio del protocolo..."
+                  className="w-full text-xs text-slate-600 bg-white border border-[#D6E3F3] rounded-lg p-2 resize-none focus:outline-none focus:border-[#004A99] leading-relaxed"
+                  title="Párrafo introductorio del protocolo en el PDF"
+                />
               </div>
-              <p className="text-xs text-slate-500 mt-3 pt-3 border-t border-[#D6E3F3]">
-                + Infografía visual del procedimiento incluida en el PDF
+
+              {/* Puntos principales del protocolo (Infografía) */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    Puntos del Procedimiento ({activePasosInfografia.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={addPasoInfografia}
+                    className="text-xs font-semibold text-[#004A99] hover:underline flex items-center gap-1"
+                  >
+                    + Agregar punto
+                  </button>
+                </div>
+
+                {activePasosInfografia.length === 0 ? (
+                  <div className="py-4 text-center bg-white rounded-lg border border-dashed border-slate-300 text-xs text-slate-500">
+                    No hay puntos en la infografía. Haz clic en <strong>+ Agregar punto</strong> para añadir uno.
+                  </div>
+                ) : (
+                  activePasosInfografia.map((paso, i) => (
+                    <div key={i} className="bg-white rounded-lg p-2.5 border border-[#D6E3F3] shadow-sm hover:border-[#004A99]/50 transition-all">
+                      <div className="flex items-start gap-2.5">
+                        {/* Número y emoji */}
+                        <div className="flex flex-col items-center gap-1 pt-0.5">
+                          <span className="w-5 h-5 rounded-full bg-[#004A99] text-white text-[11px] flex items-center justify-center font-bold flex-shrink-0">
+                            {i + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={paso.icono}
+                            onChange={e => updatePasoInfografia(i, { icono: e.target.value })}
+                            className="w-7 h-7 text-center text-xs border border-slate-200 rounded hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-[#004A99] bg-slate-50"
+                            title="Emoji del punto"
+                          />
+                        </div>
+
+                        {/* Título y Descripción editables */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <input
+                              type="text"
+                              value={paso.titulo}
+                              onChange={e => updatePasoInfografia(i, { titulo: e.target.value })}
+                              placeholder="Título del punto"
+                              className="font-semibold text-slate-800 text-xs w-full border-b border-transparent hover:border-slate-200 focus:border-[#004A99] focus:outline-none px-1 py-0.5 rounded bg-transparent focus:bg-white transition-all"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removePasoInfografia(i)}
+                              className="text-slate-400 hover:text-red-600 px-1.5 py-0.5 rounded hover:bg-red-50 text-xs transition-colors flex-shrink-0 font-medium"
+                              title="Quitar este punto del protocolo"
+                            >
+                              ✕ Quitar
+                            </button>
+                          </div>
+                          <textarea
+                            value={paso.descripcion}
+                            onChange={e => updatePasoInfografia(i, { descripcion: e.target.value })}
+                            rows={2}
+                            placeholder="Descripción de la actividad..."
+                            className="text-[11px] text-slate-600 w-full border border-transparent hover:border-slate-200 focus:border-slate-300 focus:outline-none px-1.5 py-1 rounded bg-transparent focus:bg-white transition-all resize-none leading-relaxed"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Especificaciones adicionales (pasosLista) */}
+              <div className="mt-3 pt-3 border-t border-[#D6E3F3]">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    Especificaciones Adicionales ({activePasosLista.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={addPasoLista}
+                    className="text-xs font-semibold text-[#004A99] hover:underline"
+                  >
+                    + Agregar ítem
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {activePasosLista.map((paso, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1.5 border border-[#EDF3FA] shadow-xs">
+                      <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] flex items-center justify-center font-bold flex-shrink-0">
+                        {activePasosInfografia.length + i + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={paso}
+                        onChange={e => updatePasoLista(i, e.target.value)}
+                        className="text-xs text-slate-700 flex-1 border-0 focus:outline-none focus:ring-0 bg-transparent px-1"
+                        placeholder="Compromiso o condición adicional..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePasoLista(i)}
+                        className="text-slate-400 hover:text-red-500 text-xs px-1.5 py-0.5 rounded hover:bg-red-50"
+                        title="Quitar este ítem"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-500 pt-2 border-t border-[#D6E3F3]">
+                ✨ Los cambios que hagas aquí se guardan con la propuesta y se plasman en el PDF.
               </p>
-            </>
+            </div>
           )}
         </div>
       </div>
