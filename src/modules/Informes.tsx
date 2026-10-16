@@ -568,9 +568,7 @@ const InformesModule: React.FC<IProps> = ({
     };
     const calcSubtotal = (item: EditItem) => calcVenta(item) * item.cantidad;
     const calcIVA = (item: EditItem) => {
-        const cliente = clientes.find(c => c.id === editClienteId);
-        if (cliente?.regimen === 'Régimen Simplificado') return 0;
-        return calcSubtotal(item) * (item.iva / 100);
+        return calcSubtotal(item) * ((item.iva || 0) / 100);
     };
     const calcTotal = (item: EditItem) => calcSubtotal(item) + calcIVA(item);
 

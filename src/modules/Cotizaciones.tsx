@@ -82,9 +82,22 @@ BBVA - Cuenta Corriente No. 390021475`;
         telefono: currentUser.telefono || '',
         correo: currentUser.email || ''
     });
+    const [aplicarIva, setAplicarIva] = useState<boolean>(true);
 
     const selectedCliente = clientes.find(c => c.id === selectedClienteId);
     const selectedComprador = selectedCliente?.compradores?.find(comp => comp.id === selectedCompradorId);
+
+    const handleToggleAplicarIva = (checked: boolean) => {
+        setAplicarIva(checked);
+        setItems(prevItems => prevItems.map(item => {
+            const prod = productos.find(p => p.id === item.productoId);
+            if (!checked) {
+                return { ...item, iva: 0 };
+            } else {
+                return { ...item, iva: prod?.exentoIva ? 0 : 19 };
+            }
+        }));
+    };
 
     const addItem = () => {
         const newItem: QuoteItem = {
@@ -96,7 +109,7 @@ BBVA - Cuenta Corriente No. 390021475`;
             costoUnitario: 0,
             precioVenta: 0,
             utilidad: 15,
-            iva: 19
+            iva: aplicarIva ? 19 : 0
         };
         setItems([...items, newItem]);
     };
@@ -121,7 +134,8 @@ BBVA - Cuenta Corriente No. 390021475`;
 
                     const defaultUtil = 15;
                     const defaultVenta = costo > 0 ? (costo * (1 + (defaultUtil / 100))) : 0;
-                    return { ...item, productoId: value, costoUnitario: costo, precioVenta: defaultVenta, utilidad: defaultUtil, unidad: prod?.unidad || 'Und', iva: prod?.exentoIva ? 0 : 19, moneda: monedaItem };
+                    const defaultIva = !aplicarIva ? 0 : (prod?.exentoIva ? 0 : 19);
+                    return { ...item, productoId: value, costoUnitario: costo, precioVenta: defaultVenta, utilidad: defaultUtil, unidad: prod?.unidad || 'Und', iva: defaultIva, moneda: monedaItem };
                 }
                 if (field === 'costoUnitario') {
                     if (value === '') {
@@ -175,9 +189,8 @@ BBVA - Cuenta Corriente No. 390021475`;
     };
 
     const calculateIVAItem = (item: QuoteItem) => {
-        const isSimplificado = selectedCliente?.regimen === 'Régimen Simplificado';
-        if (isSimplificado) return 0;
-        return calculateSubtotalItem(item) * (item.iva / 100);
+        if (!aplicarIva) return 0;
+        return calculateSubtotalItem(item) * ((item.iva || 0) / 100);
     };
 
     const calculateTotalItem = (item: QuoteItem) => {
@@ -271,7 +284,8 @@ BBVA - Cuenta Corriente No. 390021475`;
                     condiciones,
                     validez: validezOferta,
                     observaciones,
-                    ejecutivo
+                    ejecutivo,
+                    aplicarIva
                 });
             }
 
@@ -374,13 +388,63 @@ BBVA - Cuenta Corriente No. 390021475`;
                     </div>
                 </div>
                 {selectedCliente && (
-                    <div className="client-detail-box">
-                        <p>
-                            <strong>Contacto:</strong> {selectedComprador ? selectedComprador.nombre : selectedCliente.contacto} |
-                            <strong>Tel:</strong> {selectedComprador ? selectedComprador.telefono : selectedCliente.telefono} |
-                            <strong>Correo:</strong> {selectedComprador ? selectedComprador.correo : selectedCliente.correo} |
-                            <strong>Dir:</strong> {selectedCliente.direccion}
-                        </p>
+                    <div className="client-detail-box" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div>
+                            <p style={{ margin: 0 }}>
+                                <strong>Contacto:</strong> {selectedComprador ? selectedComprador.nombre : selectedCliente.contacto} |{' '}
+                                <strong>Tel:</strong> {selectedComprador ? selectedComprador.telefono : selectedCliente.telefono} |{' '}
+                                <strong>Correo:</strong> {selectedComprador ? selectedComprador.correo : selectedCliente.correo} |{' '}
+                                <strong>Dir:</strong> {selectedCliente.direccion}
+                            </p>
+                            <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <span style={{
+                                    fontSize: '0.75rem',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    fontWeight: 600,
+                                    background: selectedCliente.regimen === 'Régimen Simplificado' ? '#fef3c7' : '#e0f2fe',
+                                    color: selectedCliente.regimen === 'Régimen Simplificado' ? '#92400e' : '#0369a1',
+                                    border: `1px solid ${selectedCliente.regimen === 'Régimen Simplificado' ? '#fde68a' : '#bae6fd'}`
+                                }}>
+                                    {selectedCliente.regimen || 'Régimen Común'}
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                    {selectedCliente.regimen === 'Régimen Simplificado'
+                                        ? 'Cliente en Régimen Simplificado (puede aplicar IVA o marcar como exento)'
+                                        : 'Cliente en Régimen Común'}
+                                </span>
+                            </div>
+                        </div>
+                        <div style={{
+                            background: aplicarIva ? '#f0fdf4' : '#f8fafc',
+                            padding: '0.5rem 0.9rem',
+                            borderRadius: '8px',
+                            border: `1.5px solid ${aplicarIva ? '#86efac' : '#cbd5e1'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', color: aplicarIva ? '#15803d' : '#475569' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={aplicarIva}
+                                    onChange={e => handleToggleAplicarIva(e.target.checked)}
+                                    style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#16a34a' }}
+                                />
+                                <span>Aplicar IVA (19%)</span>
+                            </label>
+                            <span style={{
+                                fontSize: '0.75rem',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                                background: aplicarIva ? '#dcfce7' : '#fee2e2',
+                                color: aplicarIva ? '#166534' : '#991b1b'
+                            }}>
+                                {aplicarIva ? '✓ CON IVA' : '⊘ EXENTO'}
+                            </span>
+                        </div>
                     </div>
                 )}
             </div>
@@ -422,8 +486,31 @@ BBVA - Cuenta Corriente No. 390021475`;
             </div>
 
             <div className="card table-card">
-                <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3>Items de la Cotización</h3>
+                <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <h3 style={{ margin: 0 }}>Items de la Cotización</h3>
+                        <label style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            padding: '0.25rem 0.6rem',
+                            borderRadius: '6px',
+                            background: aplicarIva ? '#eff6ff' : '#f8fafc',
+                            border: `1px solid ${aplicarIva ? '#93c5fd' : '#cbd5e1'}`,
+                            color: aplicarIva ? '#1d4ed8' : '#64748b'
+                        }}>
+                            <input
+                                type="checkbox"
+                                checked={aplicarIva}
+                                onChange={e => handleToggleAplicarIva(e.target.checked)}
+                                style={{ cursor: 'pointer' }}
+                            />
+                            <span>{aplicarIva ? '✓ IVA 19% activo' : '⊘ Sin IVA (0%)'}</span>
+                        </label>
+                    </div>
                     <button onClick={addItem} className="btn-small">+ Añadir Item</button>
                 </div>
                 <table className="data-table">
@@ -510,7 +597,9 @@ BBVA - Cuenta Corriente No. 390021475`;
                             <td></td>
                         </tr>
                         <tr>
-                            <td colSpan={7} style={{ textAlign: 'right', padding: '0.5rem 1rem' }}>IVA TOTAL:</td>
+                            <td colSpan={7} style={{ textAlign: 'right', padding: '0.5rem 1rem' }}>
+                                {aplicarIva && ivaGeneral > 0 ? 'IVA TOTAL (19%):' : 'IVA (EXENTO):'}
+                            </td>
                             <td style={{ textAlign: 'right', padding: '0.5rem 1rem' }}>${ivaGeneral.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</td>
                             <td></td>
                         </tr>

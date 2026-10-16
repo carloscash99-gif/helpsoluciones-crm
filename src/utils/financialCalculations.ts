@@ -3,8 +3,8 @@ import type { Despacho, Cotizacion, Cliente } from '../App';
 export const calculateDespachoNeto = (d: Despacho, cotizaciones: Cotizacion[], clientes: Cliente[] = []) => {
     const cot = cotizaciones.find(c => c.id === d.cotizacionId || c.consecutivo === d.consecutivoCotizacion);
     const client = clientes.find(c => c.id === d.clienteId);
-    const isSimplificado = client?.regimen === 'Régimen Simplificado';
-    const ivaDivisor = isSimplificado ? 1 : 1.19;
+    const hasIva = cot ? (Number(cot.iva) > 0) : (client?.regimen !== 'Régimen Simplificado');
+    const ivaDivisor = hasIva ? 1.19 : 1;
 
     let totalNeto = 0;
 
