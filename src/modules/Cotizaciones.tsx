@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Cliente, Producto, Cotizacion, AppUser } from '../App';
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import ProductSearchSelect from '../components/ProductSearchSelect';
@@ -39,12 +39,29 @@ const CotizacionesModule: React.FC<IProps> = ({
     // Helper to generate dynamic consecutive
     const generateConsecutivo = () => {
         const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-        const names = currentUser.nombre.trim().split(' ').filter(Boolean);
+        const names = currentUser?.nombre ? currentUser.nombre.trim().split(' ').filter(Boolean) : [];
         const init1 = names[0] ? names[0][0].toUpperCase() : 'X';
         const init2 = names.length > 1 ? names[names.length - 1][0].toUpperCase() : (names[0] && names[0].length > 1 ? names[0][1].toUpperCase() : 'X');
         const initials = `${init1}${init2}`;
-        const userQuotesCount = cotizaciones.filter(c => c.usuarioId === currentUser.id).length;
-        const nextCounter = (userQuotesCount + 1).toString().padStart(3, '0');
+
+        // Find max counter among existing quotes for this user or matching initials
+        let maxNum = 0;
+        const pattern = new RegExp(`^HSI-${initials}-(\\d+)`, 'i');
+        (cotizaciones || []).forEach(c => {
+            if (c.consecutivo) {
+                const match = c.consecutivo.match(pattern);
+                if (match && match[1]) {
+                    const num = parseInt(match[1], 10);
+                    if (!isNaN(num) && num > maxNum) {
+                        maxNum = num;
+                    }
+                }
+            }
+        });
+
+        const userQuotesCount = (cotizaciones || []).filter(c => c.usuarioId === currentUser?.id || c.usuario_id === currentUser?.id).length;
+        const nextNum = maxNum > 0 ? maxNum + 1 : userQuotesCount + 1;
+        const nextCounter = nextNum.toString().padStart(3, '0');
         return `HSI-${initials}-${nextCounter}-${dateStr}`;
     };
 
@@ -52,6 +69,14 @@ const CotizacionesModule: React.FC<IProps> = ({
     const [selectedClienteId, setSelectedClienteId] = useState('');
     const [selectedCompradorId, setSelectedCompradorId] = useState('');
     const [consecutivo, setConsecutivo] = useState(generateConsecutivo());
+    const [isSaving, setIsSaving] = useState(false);
+    const [isConsecutivoManual, setIsConsecutivoManual] = useState(false);
+
+    useEffect(() => {
+        if (!isConsecutivoManual) {
+            setConsecutivo(generateConsecutivo());
+        }
+    }, [cotizaciones?.length, currentUser?.id]);
     const [observaciones, setObservaciones] = useState('');
     const [validezOferta, setValidezOferta] = useState(3);
 
@@ -209,6 +234,8 @@ BBVA - Cuenta Corriente No. 390021475`;
         : 100;
 
     const generatePDF = async () => {
+        if (isSaving) return;
+
         if (!selectedCliente) {
             alert('Seleccione un cliente.');
             return;
@@ -224,6 +251,7 @@ BBVA - Cuenta Corriente No. 390021475`;
             alert('🚫 ATENCIÓN: Esta cotización tiene un margen inferior al 10%. No es posible generar el PDF hasta que sea autorizada por el Gerente Comercial. La cotización se guardará en seguimiento.');
         }
 
+        setIsSaving(true);
         try {
             // Save to DB (await completion)
             await onAddQuote({
@@ -292,10 +320,13 @@ BBVA - Cuenta Corriente No. 390021475`;
             // Optional: Reset local state after success
             setItems([]);
             setSelectedClienteId('');
+            setIsConsecutivoManual(false);
             setConsecutivo(generateConsecutivo());
         } catch (error: any) {
             console.error("Error in generatePDF:", error);
             // Error is already alerted in addCotizacion if it's a Supabase error
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -309,8 +340,16 @@ BBVA - Cuenta Corriente No. 390021475`;
                             📱 Enviar WhatsApp
                         </button>
                     )}
-                    <button className="btn-success" onClick={generatePDF} disabled={!selectedClienteId || items.length === 0}>
-                        💾 Guardar y Generar PDF
+                    <button
+                        className="btn-success"
+                        onClick={generatePDF}
+                        disabled={isSaving || !selectedClienteId || items.length === 0}
+                        style={{
+                            opacity: isSaving ? 0.7 : 1,
+                            cursor: isSaving ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        {isSaving ? '⏳ Guardando...' : '💾 Guardar y Generar PDF'}
                     </button>
                 </div>
             </div>
@@ -358,7 +397,10 @@ BBVA - Cuenta Corriente No. 390021475`;
                                 className="input-field"
                                 placeholder="N° Consecutivo"
                                 value={consecutivo}
-                                onChange={e => setConsecutivo(e.target.value)}
+                                onChange={e => {
+                                    setIsConsecutivoManual(true);
+                                    setConsecutivo(e.target.value);
+                                }}
                                 readOnly={currentUser.rol?.toLowerCase() === 'comercial'}
                                 style={{ 
                                     flex: 1, 

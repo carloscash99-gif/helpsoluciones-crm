@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import RecoveryAssistant from './components/RecoveryAssistant'
 import './index.css'
 import ClientesModule from './modules/Clientes'
@@ -418,6 +418,7 @@ export interface Propuesta {
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
+  const isAddingCotizacionRef = useRef(false)
 
   // Shared state from Supabase
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -1253,67 +1254,84 @@ function App() {
   };
 
   const addCotizacion = async (c: Cotizacion) => {
-    if (IS_DEMO) { setCotizaciones(prev => [{ ...c, id: crypto.randomUUID() }, ...prev]); setActiveTab('informes'); return; }
-    const { data, error } = await supabase.from('cotizaciones').insert([{
-      fecha: c.fecha,
-      consecutivo: c.consecutivo,
-      items: c.items,
-      subtotal: c.subtotal,
-      iva: c.iva,
-      total: c.total,
-      ejecutivo: c.ejecutivo,
-      estado: c.estado,
-      cliente_id: c.clienteId,
-      cliente_nombre: c.clienteNombre,
-      ejecutivo_email: c.ejecutivoEmail,
-      ejecutivo_telefono: c.ejecutivoTelefono,
-      usuario_id: c.usuarioId,
-      utilidad_total: c.utilidadTotal,
-      requiere_autorizacion: c.requiereAutorizacion || false,
-      autorizada: c.autorizada || false,
-      autorizado_por: c.autorizadoPor,
-      fecha_autorizacion: c.fechaAutorizacion,
-      observaciones: c.observaciones || '',
-      condiciones: c.condiciones || '',
-      trm: c.trm || 0,
-      validez_oferta: c.validez_oferta || 3,
-      comprador_nombre: c.compradorNombre || '',
-      comprador_telefono: c.compradorTelefono || '',
-      comprador_email: c.compradorEmail || '',
-      metadata: c.metadata || {}
-    }]).select();
+    if (isAddingCotizacionRef.current) {
+      console.warn('Ya se está procesando el guardado de una cotización.');
+      return;
+    }
 
-    if (error) {
-      alert('Error al añadir cotización: ' + error.message);
-      throw error;
-    } else if (data) {
-      const dbC = data[0];
-      setCotizaciones(prev => [{
-        ...dbC,
-        clienteId: dbC.cliente_id,
-        clienteNombre: dbC.cliente_nombre,
-        ejecutivoEmail: dbC.ejecutivo_email,
-        ejecutivoTelefono: dbC.ejecutivo_telefono,
-        compradorNombre: dbC.comprador_nombre || '',
-        compradorTelefono: dbC.comprador_telefono || '',
-        compradorEmail: dbC.comprador_email || '',
-        usuarioId: dbC.usuario_id,
-        utilidadTotal: Number(dbC.utilidad_total || 0),
-        requiereAutorizacion: dbC.requiere_autorizacion,
-        autorizada: dbC.autorizada,
-        autorizadoPor: dbC.autorizado_por,
-        fechaAutorizacion: dbC.fecha_autorizacion,
-        observaciones: dbC.observaciones || '',
-        condiciones: dbC.condiciones || '',
-        trm: dbC.trm || 0,
-        validez_oferta: dbC.validez_oferta || 3,
-        ordenCompraCliente: dbC.orden_compra_cliente,
-        ordenCompraUrl: dbC.orden_compra_url,
-        metadata: dbC.metadata || {}
-      } as Cotizacion, ...prev]);
-      
-      // Auto-navigate to Informes
-      setActiveTab('informes');
+    const existing = cotizaciones.find(item => item.consecutivo?.trim() === c.consecutivo?.trim());
+    if (existing) {
+      console.warn(`Cotización con consecutivo ${c.consecutivo} ya existe.`);
+      alert(`⚠️ Ya existe una cotización registrada con el consecutivo "${c.consecutivo}".`);
+      return;
+    }
+
+    isAddingCotizacionRef.current = true;
+    try {
+      if (IS_DEMO) { setCotizaciones(prev => [{ ...c, id: crypto.randomUUID() }, ...prev]); setActiveTab('informes'); return; }
+      const { data, error } = await supabase.from('cotizaciones').insert([{
+        fecha: c.fecha,
+        consecutivo: c.consecutivo,
+        items: c.items,
+        subtotal: c.subtotal,
+        iva: c.iva,
+        total: c.total,
+        ejecutivo: c.ejecutivo,
+        estado: c.estado,
+        cliente_id: c.clienteId,
+        cliente_nombre: c.clienteNombre,
+        ejecutivo_email: c.ejecutivoEmail,
+        ejecutivo_telefono: c.ejecutivoTelefono,
+        usuario_id: c.usuarioId,
+        utilidad_total: c.utilidadTotal,
+        requiere_autorizacion: c.requiereAutorizacion || false,
+        autorizada: c.autorizada || false,
+        autorizado_por: c.autorizadoPor,
+        fecha_autorizacion: c.fechaAutorizacion,
+        observaciones: c.observaciones || '',
+        condiciones: c.condiciones || '',
+        trm: c.trm || 0,
+        validez_oferta: c.validez_oferta || 3,
+        comprador_nombre: c.compradorNombre || '',
+        comprador_telefono: c.compradorTelefono || '',
+        comprador_email: c.compradorEmail || '',
+        metadata: c.metadata || {}
+      }]).select();
+
+      if (error) {
+        alert('Error al añadir cotización: ' + error.message);
+        throw error;
+      } else if (data) {
+        const dbC = data[0];
+        setCotizaciones(prev => [{
+          ...dbC,
+          clienteId: dbC.cliente_id,
+          clienteNombre: dbC.cliente_nombre,
+          ejecutivoEmail: dbC.ejecutivo_email,
+          ejecutivoTelefono: dbC.ejecutivo_telefono,
+          compradorNombre: dbC.comprador_nombre || '',
+          compradorTelefono: dbC.comprador_telefono || '',
+          compradorEmail: dbC.comprador_email || '',
+          usuarioId: dbC.usuario_id,
+          utilidadTotal: Number(dbC.utilidad_total || 0),
+          requiereAutorizacion: dbC.requiere_autorizacion,
+          autorizada: dbC.autorizada,
+          autorizadoPor: dbC.autorizado_por,
+          fechaAutorizacion: dbC.fecha_autorizacion,
+          observaciones: dbC.observaciones || '',
+          condiciones: dbC.condiciones || '',
+          trm: dbC.trm || 0,
+          validez_oferta: dbC.validez_oferta || 3,
+          ordenCompraCliente: dbC.orden_compra_cliente,
+          ordenCompraUrl: dbC.orden_compra_url,
+          metadata: dbC.metadata || {}
+        } as Cotizacion, ...prev]);
+        
+        // Auto-navigate to Informes
+        setActiveTab('informes');
+      }
+    } finally {
+      isAddingCotizacionRef.current = false;
     }
   };
 
