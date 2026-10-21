@@ -66,6 +66,7 @@ const InformesModule: React.FC<IProps> = ({
 
     // Edit modal state
     const [editingQuote, setEditingQuote] = useState<Cotizacion | null>(null);
+    const [editConsecutivo, setEditConsecutivo] = useState('');
     const [editItems, setEditItems] = useState<EditItem[]>([]);
     const [editClienteId, setEditClienteId] = useState('');
     const [editObservaciones, setEditObservaciones] = useState('');
@@ -503,6 +504,7 @@ const InformesModule: React.FC<IProps> = ({
     // --- Edit Modal Helpers ---
     const openEditModal = (q: Cotizacion) => {
         setEditingQuote(q);
+        setEditConsecutivo(q.consecutivo || '');
         setEditClienteId(q.clienteId);
         setEditItems((q.items || []).map(item => ({
             id: item.id,
@@ -523,6 +525,7 @@ const InformesModule: React.FC<IProps> = ({
 
     const closeEditModal = () => {
         setEditingQuote(null);
+        setEditConsecutivo('');
         setEditItems([]);
         setEditClienteId('');
         setEditObservaciones('');
@@ -587,6 +590,7 @@ const InformesModule: React.FC<IProps> = ({
 
         const updated: Cotizacion = {
             ...editingQuote,
+            consecutivo: editConsecutivo.trim() || editingQuote.consecutivo,
             clienteId: editClienteId,
             clienteNombre: cliente?.nombre || editingQuote.clienteNombre,
             items: editItems.map(i => ({
@@ -1323,14 +1327,20 @@ const InformesModule: React.FC<IProps> = ({
 
                         <div className="modal-body">
                             {/* Client selector */}
-                            <div className="edit-section">
-                                <label className="edit-label">Cliente</label>
-                                <select className="edit-select" value={editClienteId} onChange={e => setEditClienteId(e.target.value)}>
+                            <div className="edit-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                                <div className="edit-section" style={{ marginBottom: 0 }}>
+                                    <label className="edit-label">N° Consecutivo</label>
+                                    <input className="edit-input" type="text" value={editConsecutivo} onChange={e => setEditConsecutivo(e.target.value)} placeholder="HSI-XX-000-YYYYMMDD" />
+                                </div>
+                                <div className="edit-section" style={{ marginBottom: 0 }}>
+                                    <label className="edit-label">Cliente</label>
+                                    <select className="edit-select" value={editClienteId} onChange={e => setEditClienteId(e.target.value)}>
                                     <option value="">-- Seleccionar Cliente --</option>
                                     {clientes.map(c => (
                                         <option key={c.id} value={c.id}>{c.nombre} (NIT: {c.nit})</option>
                                     ))}
                                 </select>
+                                </div>
                             </div>
 
                             {/* Executive Info */}

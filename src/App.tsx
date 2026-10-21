@@ -1395,6 +1395,12 @@ function App() {
     const oldQuote = cotizaciones.find(q => q.id === c.id);
     setCotizaciones(prev => prev.map(item => item.id === c.id ? c : item));
 
+    // Sync consecutivo with despachos if changed
+    if (oldQuote && oldQuote.consecutivo !== c.consecutivo) {
+      supabase.from('despachos').update({ consecutivo_cotizacion: c.consecutivo }).eq('cotizacion_id', c.id).then();
+      setDespachos(prev => prev.map(d => d.cotizacionId === c.id ? { ...d, consecutivoCotizacion: c.consecutivo } : d));
+    }
+
     // 3. Trigger Outlook Email & Logistics Automation if Won
     if (c.estado === 'Ganado') {
       // Outlook Integration via Template
