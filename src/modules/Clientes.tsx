@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Cliente } from '../App';
+import ClienteCategoriaBadge, { CATEGORIAS_CLIENTE, type CategoriaCliente } from '../components/ClienteCategoriaBadge';
 
 interface IProps {
   clientes: Cliente[];
@@ -14,20 +15,26 @@ const ClientesModule: React.FC<IProps> = ({ clientes, onAdd, onUpdate, onDelete,
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Cliente>>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCatFilter, setSelectedCatFilter] = useState<'TODAS' | CategoriaCliente>('TODAS');
 
-  const filteredClientes = (clientes || []).filter(c =>
-    (c.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.nit || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.contacto || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredClientes = (clientes || []).filter(c => {
+    const matchesSearch =
+      (c.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.nit || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.contacto || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const cat = (c.categoria || 'A') as CategoriaCliente;
+    const matchesCat = selectedCatFilter === 'TODAS' || cat === selectedCatFilter;
+    return matchesSearch && matchesCat;
+  });
 
   const handleSave = () => {
     if (formData.nombre && formData.nit) {
+      const dataWithCat = { ...formData, categoria: formData.categoria || 'A' };
       if (editingId) {
-        onUpdate({ ...formData, id: editingId } as Cliente);
+        onUpdate({ ...dataWithCat, id: editingId } as Cliente);
         setEditingId(null);
       } else {
-        onAdd({ ...formData, id: crypto.randomUUID() } as Cliente);
+        onAdd({ ...dataWithCat, id: crypto.randomUUID() } as Cliente);
         setIsAdding(false);
       }
       setFormData({});
@@ -51,15 +58,62 @@ const ClientesModule: React.FC<IProps> = ({ clientes, onAdd, onUpdate, onDelete,
       <div className="module-header">
         <div>
           <h2>Gestión de Clientes</h2>
-          <div className="search-container" style={{ marginTop: '0.5rem' }}>
+          <div className="search-container" style={{ marginTop: '0.5rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <input
               type="text"
               className="input-field search-input"
               placeholder="🔍 Buscar por nombre, NIT o contacto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ width: '350px', borderRadius: '20px', paddingLeft: '2.5rem' }}
+              style={{ width: '300px', borderRadius: '20px', paddingLeft: '2.5rem' }}
             />
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Filtrar:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedCatFilter('TODAS')}
+                style={{
+                  padding: '3px 9px',
+                  borderRadius: '14px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: selectedCatFilter === 'TODAS' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                  background: selectedCatFilter === 'TODAS' ? '#e0f2fe' : '#ffffff',
+                  color: selectedCatFilter === 'TODAS' ? '#0369a1' : '#64748b'
+                }}
+              >
+                Todas ({clientes.length})
+              </button>
+              {(['A', 'B', 'C', 'D'] as const).map(catKey => {
+                const count = (clientes || []).filter(c => (c.categoria || 'A') === catKey).length;
+                const isSelected = selectedCatFilter === catKey;
+                const cfg = CATEGORIAS_CLIENTE[catKey];
+                return (
+                  <button
+                    key={catKey}
+                    type="button"
+                    onClick={() => setSelectedCatFilter(catKey)}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: '14px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: '1.5px solid ' + cfg.border,
+                      background: isSelected ? cfg.border : cfg.bg,
+                      color: isSelected ? '#ffffff' : cfg.color,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: cfg.dotColor }} />
+                    {catKey} ({count})
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
         <button onClick={() => { setIsAdding(true); setEditingId(null); setFormData({}); }}>+ Nuevo Cliente</button>
@@ -246,6 +300,7 @@ const ClientesModule: React.FC<IProps> = ({ clientes, onAdd, onUpdate, onDelete,
             <thead>
               <tr>
                 <th style={{ minWidth: '180px' }}>Nombre Cliente</th>
+                <th style={{ minWidth: '90px' }}>Categoría</th>
                 <th style={{ minWidth: '120px' }}>NIT</th>
                 <th style={{ minWidth: '150px' }}>Contacto Comercial</th>
                 <th style={{ minWidth: '180px' }}>Contactos Financieros</th>
@@ -258,7 +313,16 @@ const ClientesModule: React.FC<IProps> = ({ clientes, onAdd, onUpdate, onDelete,
             <tbody>
               {filteredClientes.map(c => (
                 <tr key={c.id}>
-                  <td><strong>{c.nombre}</strong><br /><small>{c.correo}</small></td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <strong>{c.nombre}</strong>
+                      <ClienteCategoriaBadge categoria={c.categoria} size="sm" />
+                    </div>
+                    <small>{c.correo}</small>
+                  </td>
+                  <td>
+                    <ClienteCategoriaBadge categoria={c.categoria} size="md" showLabel={true} />
+                  </td>
                   <td>{c.nit}</td>
                   <td>{c.contacto}<br /><small>{c.telefono}</small></td>
                   <td>

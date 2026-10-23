@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import type { Cliente, Producto, Cotizacion, AppUser } from '../App';
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import ProductSearchSelect from '../components/ProductSearchSelect';
+import ClienteCategoriaBadge from '../components/ClienteCategoriaBadge';
 
 interface QuoteItem {
     id: string;
@@ -369,9 +370,15 @@ BBVA - Cuenta Corriente No. 390021475`;
                             >
                                 <option value="">-- Seleccionar Cliente --</option>
                                 {clientes.map(c => (
-                                    <option key={c.id} value={c.id}>{c.nombre} (NIT: {c.nit})</option>
+                                    <option key={c.id} value={c.id}>{c.nombre} [Cat. {c.categoria || 'A'}] (NIT: {c.nit})</option>
                                 ))}
                             </select>
+                            {selectedCliente && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Clasificación:</span>
+                                    <ClienteCategoriaBadge categoria={selectedCliente.categoria} showLabel={true} size="md" />
+                                </div>
+                            )}
                             {selectedCliente && selectedCliente.compradores && selectedCliente.compradores.length > 0 && (
                                 <select
                                     className="input-field animate-fade-in"

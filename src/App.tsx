@@ -95,6 +95,7 @@ export interface Cliente {
   poseeCredito: boolean;
   cupoCredito?: number;
   regimen?: 'Régimen Común' | 'Régimen Simplificado';
+  categoria?: 'A' | 'B' | 'C' | 'D';
 }
 
 export interface Proveedor {
@@ -521,7 +522,8 @@ function App() {
           contabilidadEmail: c.contabilidad_email || '',
           poseeCredito: !!c.posee_credito,
           cupoCredito: c.cupo_credito || 0,
-          regimen: c.regimen || 'Régimen Común'
+          regimen: c.regimen || 'Régimen Común',
+          categoria: c.categoria || 'A'
         } as Cliente)));
       }
 
@@ -858,7 +860,15 @@ function App() {
 
     console.log('Insertando cliente en Supabase:', dbClient);
 
-    const { data: insertData, error: insertError } = await supabase.from('clientes').insert([dbClient]).select();
+    let { data: insertData, error: insertError } = await supabase.from('clientes').insert([dbClient]).select();
+    if (insertError && (insertError.message?.includes('categoria') || insertError.code === '42703')) {
+      console.warn('Columna categoria no existe aún en Supabase. Reintentando sin categoria...');
+      const fallbackClient = { ...dbClient };
+      delete fallbackClient.categoria;
+      const retry = await supabase.from('clientes').insert([fallbackClient]).select();
+      insertData = retry.data;
+      insertError = retry.error;
+    }
 
     if (insertError) {
       console.error('Error al añadir cliente:', insertError);
@@ -879,7 +889,8 @@ function App() {
         contabilidadTelefono: dbObj.contabilidad_telefono,
         contabilidadEmail: dbObj.contabilidad_email,
         poseeCredito: !!dbObj.posee_credito,
-        cupoCredito: dbObj.cupo_credito
+        cupoCredito: dbObj.cupo_credito,
+        categoria: dbObj.categoria || 'A'
       } as Cliente]);
       alert('Cliente añadido correctamente.');
     }
@@ -913,7 +924,14 @@ function App() {
 
     console.log('Actualizando cliente en Supabase:', payload);
 
-    const { error: updateError } = await supabase.from('clientes').update(payload).eq('id', c.id);
+    let { error: updateError } = await supabase.from('clientes').update(payload).eq('id', c.id);
+    if (updateError && (updateError.message?.includes('categoria') || updateError.code === '42703')) {
+      console.warn('Columna categoria no existe aún en Supabase. Reintentando update sin categoria...');
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.categoria;
+      const retry = await supabase.from('clientes').update(fallbackPayload).eq('id', c.id);
+      updateError = retry.error;
+    }
 
     if (updateError) {
       console.error('Error al actualizar cliente:', updateError);

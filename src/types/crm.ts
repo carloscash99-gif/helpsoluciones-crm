@@ -48,6 +48,7 @@ export interface Cliente {
   poseeCredito: boolean;
   cupoCredito?: number;
   regimen?: 'Régimen Común' | 'Régimen Simplificado';
+  categoria?: 'A' | 'B' | 'C' | 'D';
 }
 
 export interface Proveedor {
