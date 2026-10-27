@@ -120,7 +120,7 @@ BBVA - Cuenta Corriente No. 390021475`;
             if (!checked) {
                 return { ...item, iva: 0 };
             } else {
-                return { ...item, iva: prod?.exentoIva ? 0 : 19 };
+                return { ...item, iva: 19 };
             }
         }));
     };

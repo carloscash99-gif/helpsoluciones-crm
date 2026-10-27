@@ -78,7 +78,7 @@ export const generateQuotationPDF = (data: PDFData, action: 'save' | 'view' = 's
             // Use high precision for intermediate calculations
             const ventaUnit = Math.round((item.precioVenta !== undefined ? item.precioVenta : ((item.costoUnitario || 0) * (1 + (item.utilidad || 0) / 100))) * 100) / 100;
             const itemSubtotal = Math.round((ventaUnit * item.cantidad) * 100) / 100;
-            const itemIvaRate = data.aplicarIva === false ? 0 : (prod?.exentoIva ? 0 : (item.iva !== undefined ? Number(item.iva) : 19));
+            const itemIvaRate = data.aplicarIva === false ? 0 : (item.iva !== undefined && item.iva !== null ? Number(item.iva) : (prod?.exentoIva ? 0 : 19));
             const itemIVA = Math.round((itemSubtotal * (itemIvaRate / 100)) * 100) / 100;
             
             calculatedSubtotal += itemSubtotal;
@@ -93,7 +93,16 @@ export const generateQuotationPDF = (data: PDFData, action: 'save' | 'view' = 's
             ];
         });
 
-        const calculatedTotal = calculatedSubtotal + calculatedIVA;
+        if (calculatedIVA === 0 && typeof data.iva === 'number' && data.iva > 0) {
+            calculatedIVA = data.iva;
+        }
+        if (calculatedSubtotal === 0 && typeof data.subtotal === 'number' && data.subtotal > 0) {
+            calculatedSubtotal = data.subtotal;
+        }
+
+        const calculatedTotal = (typeof data.total === 'number' && data.total > 0 && Math.abs(data.total - (calculatedSubtotal + calculatedIVA)) < 1)
+            ? data.total
+            : (calculatedSubtotal + calculatedIVA);
 
         autoTable(doc, {
             startY: 85,

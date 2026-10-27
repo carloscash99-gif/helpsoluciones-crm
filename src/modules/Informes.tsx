@@ -497,7 +497,8 @@ const InformesModule: React.FC<IProps> = ({
                 correo: q.ejecutivoEmail
             },
             validez: q.validez_oferta || '15 días',
-            observaciones: q.observaciones
+            observaciones: q.observaciones,
+            aplicarIva: (q.iva && q.iva > 0) ? true : undefined
         });
     };
 
