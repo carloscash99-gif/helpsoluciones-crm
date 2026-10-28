@@ -4,6 +4,7 @@ import type { Cotizacion, SalesBudget, AppUser, Cliente, Producto, Proveedor, Ve
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import { supabase } from '../lib/supabaseClient';
 import { calculateDespachoNeto } from '../utils/financialCalculations';
+import ProductSearchSelect from '../components/ProductSearchSelect';
 
 interface IProps {
     cotizaciones: Cotizacion[];
@@ -28,6 +29,7 @@ interface EditItem {
     unidad: string;
     cantidad: number;
     costoUnitario: number;
+    precioVenta?: number;
     utilidad: number;
     iva: number;
 }
@@ -507,16 +509,24 @@ const InformesModule: React.FC<IProps> = ({
         setEditingQuote(q);
         setEditConsecutivo(q.consecutivo || '');
         setEditClienteId(q.clienteId);
-        setEditItems((q.items || []).map(item => ({
-            id: item.id,
-            productoId: item.productoId,
-            proveedorId: item.proveedorId,
-            unidad: item.unidad,
-            cantidad: item.cantidad,
-            costoUnitario: item.costoUnitario,
-            utilidad: item.utilidad,
-            iva: item.iva,
-        })));
+        setEditItems((q.items || []).map(item => {
+            const costo = Number(item.costoUnitario) || 0;
+            const util = Number(item.utilidad) || 0;
+            const venta = item.precioVenta !== undefined && item.precioVenta !== null
+                ? Number(item.precioVenta)
+                : (costo > 0 ? (costo * (1 + util / 100)) : 0);
+            return {
+                id: item.id || crypto.randomUUID(),
+                productoId: item.productoId || '',
+                proveedorId: item.proveedorId || '',
+                unidad: item.unidad || 'Und',
+                cantidad: Number(item.cantidad) || 1,
+                costoUnitario: costo,
+                precioVenta: venta,
+                utilidad: util,
+                iva: item.iva !== undefined && item.iva !== null ? Number(item.iva) : 19,
+            };
+        }));
         setEditObservaciones(q.observaciones || '');
         setEditEjecutivo(q.ejecutivo || '');
         setEditEjecutivoEmail(q.ejecutivoEmail || '');
@@ -541,7 +551,40 @@ const InformesModule: React.FC<IProps> = ({
             if (item.id === id) {
                 if (field === 'productoId') {
                     const prod = productos.find(p => p.id === value);
-                    return { ...item, productoId: value, costoUnitario: prod?.precioCompra || 0, unidad: prod?.unidad || 'Und' };
+                    const costo = prod?.precioCompra || 0;
+                    const defaultUtil = 15;
+                    const defaultVenta = costo > 0 ? (costo * (1 + (defaultUtil / 100))) : 0;
+                    const defaultIva = prod?.exentoIva ? 0 : 19;
+                    return {
+                        ...item,
+                        productoId: value,
+                        costoUnitario: costo,
+                        precioVenta: defaultVenta,
+                        utilidad: defaultUtil,
+                        unidad: prod?.unidad || 'Und',
+                        iva: defaultIva
+                    };
+                }
+                if (field === 'costoUnitario') {
+                    const newCosto = Number(value) || 0;
+                    const margin = (Number(item.utilidad) || 0) / 100;
+                    const newVenta = newCosto > 0 ? (newCosto * (1 + margin)) : (item.precioVenta || 0);
+                    return { ...item, costoUnitario: newCosto, precioVenta: newVenta };
+                }
+                if (field === 'utilidad') {
+                    const newUtil = Number(value) || 0;
+                    const costo = Number(item.costoUnitario) || 0;
+                    const newVenta = costo > 0 ? (costo * (1 + (newUtil / 100))) : (item.precioVenta || 0);
+                    return { ...item, utilidad: newUtil, precioVenta: newVenta };
+                }
+                if (field === 'precioVenta') {
+                    const newVenta = Number(value) || 0;
+                    const costo = Number(item.costoUnitario) || 0;
+                    let newUtil = 0;
+                    if (costo > 0) {
+                        newUtil = Math.round(((newVenta - costo) / costo) * 100 * 100) / 100;
+                    }
+                    return { ...item, precioVenta: newVenta, utilidad: newUtil };
                 }
                 return { ...item, [field]: value };
             }
@@ -557,6 +600,7 @@ const InformesModule: React.FC<IProps> = ({
             unidad: 'Und',
             cantidad: 1,
             costoUnitario: 0,
+            precioVenta: 0,
             utilidad: 15,
             iva: 19,
         }]);
@@ -567,12 +611,15 @@ const InformesModule: React.FC<IProps> = ({
     };
 
     const calcVenta = (item: EditItem) => {
+        if (item.precioVenta !== undefined && item.precioVenta !== null) {
+            return Number(item.precioVenta);
+        }
         const util = Number(item.utilidad || 0);
-        return item.costoUnitario * (1 + (util / 100));
+        return (Number(item.costoUnitario) || 0) * (1 + (util / 100));
     };
-    const calcSubtotal = (item: EditItem) => calcVenta(item) * item.cantidad;
+    const calcSubtotal = (item: EditItem) => calcVenta(item) * (Number(item.cantidad) || 0);
     const calcIVA = (item: EditItem) => {
-        return calcSubtotal(item) * ((item.iva || 0) / 100);
+        return calcSubtotal(item) * ((Number(item.iva) || 0) / 100);
     };
     const calcTotal = (item: EditItem) => calcSubtotal(item) + calcIVA(item);
 
@@ -1366,18 +1413,18 @@ const InformesModule: React.FC<IProps> = ({
                                     <label className="edit-label" style={{ margin: 0 }}>Items</label>
                                     <button className="btn-add-item" onClick={addEditItem}>+ Añadir Item</button>
                                 </div>
-                                <div style={{ overflowX: 'auto' }}>
+                                <div style={{ overflowX: 'auto', minHeight: '180px', paddingBottom: '30px' }}>
                                     <table className="edit-table">
                                         <thead>
                                             <tr>
-                                                <th>Producto</th>
-                                                <th>Proveedor</th>
+                                                <th style={{ minWidth: '320px' }}>Producto</th>
+                                                <th style={{ width: '120px' }}>Proveedor</th>
                                                 <th style={{ width: '65px' }}>Cant</th>
-                                                <th style={{ width: '90px' }}>Costo</th>
-                                                <th style={{ width: '60px' }}>Util%</th>
-                                                <th style={{ width: '60px' }}>IVA%</th>
-                                                <th>Venta</th>
-                                                <th>Total</th>
+                                                <th style={{ width: '95px' }}>Costo</th>
+                                                <th style={{ width: '65px' }}>Util%</th>
+                                                <th style={{ width: '110px' }}>Venta (Unit)</th>
+                                                <th style={{ width: '65px' }}>IVA%</th>
+                                                <th style={{ width: '110px' }}>Total</th>
                                                 <th style={{ width: '40px' }}></th>
                                             </tr>
                                         </thead>
@@ -1385,12 +1432,12 @@ const InformesModule: React.FC<IProps> = ({
                                             {editItems.map(item => (
                                                 <tr key={item.id}>
                                                     <td>
-                                                        <select className="edit-input" value={item.productoId} onChange={e => updateEditItem(item.id, 'productoId', e.target.value)}>
-                                                            <option value="">-- Producto --</option>
-                                                            {productos.map(p => (
-                                                                <option key={p.id} value={p.id}>{p.nombre}</option>
-                                                            ))}
-                                                        </select>
+                                                        <ProductSearchSelect
+                                                            productos={productos}
+                                                            value={item.productoId}
+                                                            onChange={(newId) => updateEditItem(item.id, 'productoId', newId)}
+                                                            placeholder="-- Buscar producto... --"
+                                                        />
                                                     </td>
                                                     <td>
                                                         <select className="edit-input" value={item.proveedorId} onChange={e => updateEditItem(item.id, 'proveedorId', e.target.value)}>
@@ -1400,13 +1447,23 @@ const InformesModule: React.FC<IProps> = ({
                                                             ))}
                                                         </select>
                                                     </td>
-                                                    <td><input className="edit-input num" type="number" value={item.cantidad} onChange={e => updateEditItem(item.id, 'cantidad', Number(e.target.value))} /></td>
-                                                    <td><input className="edit-input num" type="number" step="0.01" value={item.costoUnitario} onChange={e => updateEditItem(item.id, 'costoUnitario', Number(e.target.value))} /></td>
-                                                    <td><input className="edit-input num" type="number" step="0.01" value={item.utilidad} onChange={e => updateEditItem(item.id, 'utilidad', Number(e.target.value))} /></td>
-                                                    <td><input className="edit-input num" type="number" step="0.01" value={item.iva} onChange={e => updateEditItem(item.id, 'iva', Number(e.target.value))} /></td>
-                                                    <td className="ro">${calcVenta(item).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</td>
+                                                    <td><input className="edit-input num" type="number" min="1" value={item.cantidad} onChange={e => updateEditItem(item.id, 'cantidad', Number(e.target.value))} /></td>
+                                                    <td><input className="edit-input num" type="number" step="0.01" value={item.costoUnitario === undefined ? '' : item.costoUnitario} onChange={e => updateEditItem(item.id, 'costoUnitario', e.target.value)} /></td>
+                                                    <td><input className="edit-input num" type="number" step="0.01" value={item.utilidad === undefined ? '' : item.utilidad} onChange={e => updateEditItem(item.id, 'utilidad', e.target.value)} /></td>
+                                                    <td>
+                                                        <input
+                                                            className="edit-input num bold"
+                                                            style={{ color: '#004a99' }}
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={item.precioVenta !== undefined ? item.precioVenta : calcVenta(item)}
+                                                            onChange={e => updateEditItem(item.id, 'precioVenta', Number(e.target.value))}
+                                                            title="Editar precio de venta unitario (calcula margen)"
+                                                        />
+                                                    </td>
+                                                    <td><input className="edit-input num" type="number" step="0.01" value={item.iva === undefined ? '' : item.iva} onChange={e => updateEditItem(item.id, 'iva', Number(e.target.value))} /></td>
                                                     <td className="ro bold">${calcTotal(item).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</td>
-                                                    <td><button className="btn-remove-item" onClick={() => removeEditItem(item.id)}>×</button></td>
+                                                    <td><button className="btn-remove-item" onClick={() => removeEditItem(item.id)} title="Eliminar fila">×</button></td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1812,7 +1869,7 @@ const InformesModule: React.FC<IProps> = ({
                     color: white;
                     border-radius: 16px 16px 0 0;
                 }
-                .modal-header h3 { margin: 0; font-size: 1.1rem; }
+                .modal-header h3 { margin: 0; font-size: 1.1rem; color: #ffffff !important; font-weight: 700; }
                 .modal-close {
                     background: rgba(255,255,255,0.2);
                     border: none;
