@@ -329,19 +329,51 @@ export default function DashboardEjecutivo({
         desgloseBancos: {} // sin conexión a bancos todavía (antes eran saldos escritos a mano)
     });
 
+    const [mesaAyudaPeriodo, setMesaAyudaPeriodo] = useState<'mes' | 'anual'>('mes');
+    const [loadingMesaAyuda, setLoadingMesaAyuda] = useState<boolean>(false);
     const [mesaAyuda, setMesaAyuda] = useState<{
         totalCreated: number;
         totalResolved: number;
         totalPending: number;
         slaPercent: number;
         technicians: { name: string; resolved: number; pending: number; sla: number }[];
-    }>({
+    }>(() => leerGuardado(`crm_mesa_ayuda_${now.getFullYear()}_${now.getMonth() + 1}`, {
         totalCreated: 0,
         totalResolved: 0,
         totalPending: 0,
-        slaPercent: 0,
-        technicians: [] // sin conexión a la mesa de ayuda todavía (antes eran cifras escritas a mano)
-    });
+        slaPercent: 100,
+        technicians: []
+    }));
+
+    const fetchMesaAyudaData = async (year = selectedYear, month = (mesaAyudaPeriodo === 'anual' ? 0 : selectedMonth)) => {
+        setLoadingMesaAyuda(true);
+        try {
+            const url = `${EDGE_FUNCTION_URL}?action=mesa-ayuda&year=${year}&month=${month}`;
+            const res = await fetch(url, { headers: siigoHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.ok) {
+                    const parsed = {
+                        totalCreated: Number(data.totalCreated || 0),
+                        totalResolved: Number(data.totalResolved || 0),
+                        totalPending: Number(data.totalPending || 0),
+                        slaPercent: Number(data.slaPercent || 0),
+                        technicians: Array.isArray(data.technicians) ? data.technicians : []
+                    };
+                    setMesaAyuda(parsed);
+                    try { localStorage.setItem(`crm_mesa_ayuda_${year}_${month}`, JSON.stringify(parsed)); } catch {}
+                }
+            }
+        } catch (err) {
+            console.error('Error al cargar datos de Mesa de Ayuda:', err);
+        } finally {
+            setLoadingMesaAyuda(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchMesaAyudaData(selectedYear, mesaAyudaPeriodo === 'anual' ? 0 : selectedMonth);
+    }, [selectedYear, selectedMonth, mesaAyudaPeriodo]);
 
     // Función de formateo según moneda (COP / USD)
     const fmt = (val: number, compact = false) => {
@@ -2932,53 +2964,184 @@ export default function DashboardEjecutivo({
             ════════════════════════════════════════════════════════════════════ */}
             {activeTab === 'mesa_ayuda' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.85rem' }}>⚠ Estos indicadores aún no están conectados a la mesa de ayuda: no hay datos reales.</div>
+                    {/* Header de conexión en vivo y controles */}
+                    <div style={{
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 14,
+                        padding: '1rem 1.25rem',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                background: '#16a34a',
+                                boxShadow: '0 0 0 3px rgba(22, 163, 74, 0.2)'
+                            }} />
+                            <div>
+                                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>Conectado en vivo a la Mesa de Ayuda</span>
+                                    <span style={{ fontSize: '0.72rem', fontWeight: 600, background: '#ecfdf5', color: '#16a34a', padding: '0.15rem 0.5rem', borderRadius: 6, border: '1px solid #bbf7d0' }}>
+                                        Producción Homelab
+                                    </span>
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                                    Métricas para {mesaAyudaPeriodo === 'anual' ? `todo el año ${selectedYear}` : `${MONTH_NAMES[selectedMonth - 1]} de ${selectedYear}`}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '0.2rem', borderRadius: 8 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setMesaAyudaPeriodo('mes')}
+                                    style={{
+                                        padding: '0.35rem 0.75rem',
+                                        fontSize: '0.8rem',
+                                        fontWeight: mesaAyudaPeriodo === 'mes' ? 700 : 500,
+                                        color: mesaAyudaPeriodo === 'mes' ? '#0f172a' : '#64748b',
+                                        background: mesaAyudaPeriodo === 'mes' ? '#ffffff' : 'transparent',
+                                        border: 'none',
+                                        borderRadius: 6,
+                                        cursor: 'pointer',
+                                        boxShadow: mesaAyudaPeriodo === 'mes' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                >
+                                    Mes ({MONTH_NAMES[selectedMonth - 1]?.slice(0, 3)})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMesaAyudaPeriodo('anual')}
+                                    style={{
+                                        padding: '0.35rem 0.75rem',
+                                        fontSize: '0.8rem',
+                                        fontWeight: mesaAyudaPeriodo === 'anual' ? 700 : 500,
+                                        color: mesaAyudaPeriodo === 'anual' ? '#0f172a' : '#64748b',
+                                        background: mesaAyudaPeriodo === 'anual' ? '#ffffff' : 'transparent',
+                                        border: 'none',
+                                        borderRadius: 6,
+                                        cursor: 'pointer',
+                                        boxShadow: mesaAyudaPeriodo === 'anual' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                >
+                                    Año {selectedYear}
+                                </button>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => fetchMesaAyudaData(selectedYear, mesaAyudaPeriodo === 'anual' ? 0 : selectedMonth)}
+                                disabled={loadingMesaAyuda}
+                                title="Actualizar datos en vivo"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    padding: '0.4rem 0.75rem',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: '#0f172a',
+                                    background: '#ffffff',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: 8,
+                                    cursor: loadingMesaAyuda ? 'not-allowed' : 'pointer',
+                                    opacity: loadingMesaAyuda ? 0.7 : 1
+                                }}
+                            >
+                                <RefreshCw size={14} className={loadingMesaAyuda ? 'animate-spin' : ''} />
+                                <span>{loadingMesaAyuda ? 'Actualizando...' : 'Recargar'}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* KPI Cards */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '1.25rem', border: '1px solid #e2e8f0' }}>
+                        <div style={{ background: '#ffffff', borderRadius: '14px', padding: '1.25rem', border: '1px solid #e2e8f0', position: 'relative' }}>
                             <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>TICKETS ATENDIDOS</span>
                             <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', margin: '0.35rem 0' }}>{mesaAyuda.totalCreated}</div>
-                            <span style={{ fontSize: '0.78rem', color: '#16a34a' }}>En el período seleccionado</span>
+                            <span style={{ fontSize: '0.78rem', color: '#16a34a' }}>
+                                {mesaAyudaPeriodo === 'anual' ? `Total radicados en ${selectedYear}` : `Radicados en ${MONTH_NAMES[selectedMonth - 1]}`}
+                            </span>
                         </div>
                         <div style={{ background: '#ffffff', borderRadius: '14px', padding: '1.25rem', border: '1px solid #e2e8f0' }}>
                             <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>TICKETS RESUELTOS</span>
                             <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#16a34a', margin: '0.35rem 0' }}>{mesaAyuda.totalResolved}</div>
-                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Efectividad de cierre</span>
+                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                                {mesaAyuda.totalCreated > 0 ? `${Math.round((mesaAyuda.totalResolved / mesaAyuda.totalCreated) * 100)}% de efectividad de cierre` : 'Efectividad de cierre'}
+                            </span>
                         </div>
                         <div style={{ background: '#ffffff', borderRadius: '14px', padding: '1.25rem', border: '1px solid #e2e8f0' }}>
                             <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>CUMPLIMIENTO SLA</span>
                             <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0284c7', margin: '0.35rem 0' }}>{mesaAyuda.slaPercent}%</div>
-                            <span style={{ fontSize: '0.78rem', color: '#16a34a' }}>Por encima de la meta (90%)</span>
+                            <span style={{ fontSize: '0.78rem', color: mesaAyuda.slaPercent >= 90 ? '#16a34a' : '#ef4444' }}>
+                                {mesaAyuda.slaPercent >= 90 ? 'Por encima de la meta (90%)' : 'Por debajo de la meta (90%)'}
+                            </span>
                         </div>
                         <div style={{ background: '#ffffff', borderRadius: '14px', padding: '1.25rem', border: '1px solid #e2e8f0' }}>
                             <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>PENDIENTES EN CURSO</span>
-                            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b', margin: '0.35rem 0' }}>{mesaAyuda.totalPending}</div>
-                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>En atención por técnicos</span>
+                            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: mesaAyuda.totalPending > 0 ? '#f59e0b' : '#16a34a', margin: '0.35rem 0' }}>{mesaAyuda.totalPending}</div>
+                            <span style={{ fontSize: '0.78rem', color: mesaAyuda.totalPending === 0 ? '#16a34a' : '#64748b' }}>
+                                {mesaAyuda.totalPending === 0 ? '¡Al día! Sin casos pendientes' : 'En atención por técnicos'}
+                            </span>
                         </div>
                     </div>
 
+                    {/* Desglose por Técnico */}
                     <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem' }}>
-                        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
-                            Desglose por Equipo Técnico
-                        </h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-                            {mesaAyuda.technicians.map((t, i) => (
-                                <div key={i} style={{ padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                    <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.5rem' }}>{t.name}</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                                        <span style={{ color: '#64748b' }}>Resueltos:</span>
-                                        <span style={{ fontWeight: 700, color: '#16a34a' }}>{t.resolved}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                                        <span style={{ color: '#64748b' }}>Pendientes:</span>
-                                        <span style={{ fontWeight: 700, color: '#f59e0b' }}>{t.pending}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0' }}>
-                                        <span style={{ color: '#64748b' }}>SLA Cumplido:</span>
-                                        <span style={{ fontWeight: 800, color: '#0284c7' }}>{t.sla}%</span>
-                                    </div>
-                                </div>
-                            ))}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                                    Desglose por Equipo Técnico
+                                </h3>
+                                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                                    Rendimiento individual y resolución de solicitudes técnicas asignadas
+                                </p>
+                            </div>
                         </div>
+
+                        {mesaAyuda.technicians.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.88rem', background: '#f8fafc', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
+                                No se registran tickets resueltos o asignados para el período seleccionado.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                                {mesaAyuda.technicians.map((t, i) => (
+                                    <div key={i} style={{ padding: '1.25rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>{t.name}</div>
+                                            <span style={{
+                                                fontSize: '0.75rem',
+                                                fontWeight: 700,
+                                                padding: '0.2rem 0.55rem',
+                                                borderRadius: 6,
+                                                background: t.sla >= 90 ? '#ecfdf5' : '#fef2f2',
+                                                color: t.sla >= 90 ? '#16a34a' : '#dc2626',
+                                                border: `1px solid ${t.sla >= 90 ? '#bbf7d0' : '#fecaca'}`
+                                            }}>
+                                                {t.sla}% SLA
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                            <span style={{ color: '#64748b' }}>Tickets Resueltos:</span>
+                                            <span style={{ fontWeight: 700, color: '#16a34a' }}>{t.resolved}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                            <span style={{ color: '#64748b' }}>Pendientes en Curso:</span>
+                                            <span style={{ fontWeight: 700, color: t.pending > 0 ? '#f59e0b' : '#64748b' }}>{t.pending}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

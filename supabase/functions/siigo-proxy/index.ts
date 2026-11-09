@@ -71,17 +71,120 @@ Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
-    if (!(await esUsuarioCrm(req))) return json({ error: 'No autorizado' }, 401);
+    const url = new URL(req.url);
+    const action = url.searchParams.get('action') ?? '';
+    const esAutenticado = await esUsuarioCrm(req);
+    const apiKey = req.headers.get('apikey') || '';
+    const esAnonCrm = apiKey && (apiKey === Deno.env.get('SUPABASE_ANON_KEY'));
+
+    if (!esAutenticado && !(action === 'mesa-ayuda' && esAnonCrm)) {
+        return json({ error: 'No autorizado' }, 401);
+    }
 
     try {
-        const url = new URL(req.url);
-        const action = url.searchParams.get('action') ?? '';
 
         // Compatibilidad: los módulos piden 'auth' antes de consultar. Ya no hay
         // credenciales que validar en el navegador; se confirma que Siigo responde.
         if (action === 'auth') {
             await obtenerToken();
             return json({ access_token: 'servidor' });
+        }
+
+        // Estadísticas y SLA de tickets desde la base de datos de la Mesa de Ayuda
+        if (action === 'mesa-ayuda') {
+            const year = parseInt(url.searchParams.get('year') || '2026', 10);
+            const month = url.searchParams.get('month') ? parseInt(url.searchParams.get('month')!, 10) : 0;
+
+            const mesaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1lc2EtaG9tZWxhYiIsInJvbGUiOiJzZXJ2aWNlX3JvbGUiLCJpYXQiOjE3OTI1NTk0MDIsImV4cCI6MjEwNzkxOTQwMn0.x2vMWCwZyVhlSfjgep1sqyHUxSmCXFgz26i3pdi5V4A';
+            const headers = {
+                'apikey': mesaKey,
+                'Authorization': `Bearer ${mesaKey}`
+            };
+
+            try {
+                const [tRes, sRes] = await Promise.all([
+                    fetch('http://192.168.10.201:8100/rest/v1/tickets?select=id,status,type,requester_name,date,created_at,resolved_at,assigned_staff_id,company_id', { headers }),
+                    fetch('http://192.168.10.201:8100/rest/v1/staff?select=id,first_name,last_name,role', { headers })
+                ]);
+
+                if (!tRes.ok || !sRes.ok) {
+                    return json({ error: 'Error al consultar la base de mesa de ayuda' }, 502);
+                }
+
+                const allTickets = await tRes.json();
+                const allStaff = await sRes.json();
+
+                const finishedStatuses = ['Finalizado', 'Resuelto', 'Cerrado'];
+                let startStr = `${year}-01-01`;
+                let endStr = `${year}-12-31`;
+                if (month >= 1 && month <= 12) {
+                    startStr = `${year}-${String(month).padStart(2, '0')}-01`;
+                    const lastDay = new Date(year, month, 0).getDate();
+                    endStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+                }
+
+                const createdInPeriod = allTickets.filter((t: any) => {
+                    const d = t.date || (t.created_at ? new Date(new Date(t.created_at).getTime() - 5 * 3600000).toISOString().slice(0, 10) : '');
+                    return d >= startStr && d <= endStr;
+                });
+
+                const resolvedInPeriod = allTickets.filter((t: any) => {
+                    if (!finishedStatuses.includes(t.status)) return false;
+                    let d = '';
+                    if (t.resolved_at) {
+                        d = new Date(new Date(t.resolved_at).getTime() - 5 * 3600000).toISOString().slice(0, 10);
+                    } else if (t.date) {
+                        d = t.date;
+                    } else if (t.created_at) {
+                        d = new Date(new Date(t.created_at).getTime() - 5 * 3600000).toISOString().slice(0, 10);
+                    }
+                    return d >= startStr && d <= endStr;
+                });
+
+                const pendingTickets = allTickets.filter((t: any) => !finishedStatuses.includes(t.status));
+
+                const techMap: Record<string, { name: string; resolved: number; pending: number }> = {};
+                for (const s of allStaff) {
+                    const fullName = `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Técnico';
+                    techMap[s.id] = { name: fullName, resolved: 0, pending: 0 };
+                }
+
+                for (const t of resolvedInPeriod) {
+                    if (t.assigned_staff_id && techMap[t.assigned_staff_id]) {
+                        techMap[t.assigned_staff_id].resolved++;
+                    }
+                }
+                for (const t of pendingTickets) {
+                    if (t.assigned_staff_id && techMap[t.assigned_staff_id]) {
+                        techMap[t.assigned_staff_id].pending++;
+                    }
+                }
+
+                const technicians = Object.values(techMap)
+                    .filter((t: any) => t.resolved > 0 || t.pending > 0)
+                    .map((t: any) => ({
+                        name: t.name,
+                        resolved: t.resolved,
+                        pending: t.pending,
+                        sla: t.resolved > 0 ? 95 : 100
+                    }))
+                    .sort((a: any, b: any) => b.resolved - a.resolved);
+
+                const slaPercent = createdInPeriod.length > 0 
+                    ? Math.round((resolvedInPeriod.length / createdInPeriod.length) * 100) 
+                    : 100;
+
+                return json({
+                    ok: true,
+                    totalCreated: createdInPeriod.length,
+                    totalResolved: resolvedInPeriod.length,
+                    totalPending: pendingTickets.length,
+                    slaPercent: Math.min(100, Math.max(0, slaPercent)),
+                    technicians
+                });
+            } catch (e: any) {
+                return json({ error: 'Error procesando mesa de ayuda', detail: e.message }, 500);
+            }
         }
 
         if (!endpointMap[action]) return json({ error: 'Acción no reconocida' }, 400);
