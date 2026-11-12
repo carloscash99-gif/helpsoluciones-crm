@@ -40,6 +40,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
     
     // Form State
     const [selectedClienteId, setSelectedClienteId] = useState('');
+    const [numeroRemision, setNumeroRemision] = useState('');
     const [remissionItems, setRemissionItems] = useState<Partial<RemissionDetail>[]>([]);
     const [observations, setObservations] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -47,6 +48,48 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
     useEffect(() => {
         fetchRemisiones();
     }, [clientes]);
+
+    const calculateNextConsecutivo = (clienteId: string, currentRemisiones: Remission[]) => {
+        if (!clienteId) return '';
+        const cliente = clientes.find(c => c.id === clienteId);
+        if (!cliente || !cliente.nombre) return '';
+
+        // Extraer las 2 primeras letras del nombre del cliente (limpiando tildes y caracteres especiales)
+        const cleanName = cliente.nombre
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Quitar acentos/tildes
+            .replace(/[^a-zA-Z0-9]/g, '')     // Quitar símbolos y espacios
+            .toUpperCase();
+
+        const initials = cleanName.length >= 2 ? cleanName.slice(0, 2) : cleanName.padEnd(2, 'X');
+        const currentYear = new Date().getFullYear();
+
+        // Buscar consecutivos existentes que inicien con estas 2 letras y el año
+        // Soporta formatos con o sin guion: UN-2026-001 o UN2026-001
+        const prefixDash = `${initials}-${currentYear}-`;
+        const prefixNoDash = `${initials}${currentYear}-`;
+
+        let maxNum = 0;
+        currentRemisiones.forEach(r => {
+            const numStr = (r.numero || '').toUpperCase().trim();
+            if (numStr.startsWith(prefixDash)) {
+                const val = parseInt(numStr.slice(prefixDash.length), 10);
+                if (!isNaN(val) && val > maxNum) maxNum = val;
+            } else if (numStr.startsWith(prefixNoDash)) {
+                const val = parseInt(numStr.slice(prefixNoDash.length), 10);
+                if (!isNaN(val) && val > maxNum) maxNum = val;
+            }
+        });
+
+        const nextConsecutivo = maxNum + 1;
+        return `${initials}-${currentYear}-${String(nextConsecutivo).padStart(3, '0')}`;
+    };
+
+    const handleClienteChange = (id: string) => {
+        setSelectedClienteId(id);
+        const autoConsecutivo = calculateNextConsecutivo(id, remisiones);
+        setNumeroRemision(autoConsecutivo);
+    };
 
     const fetchRemisiones = async () => {
         setLoading(true);
@@ -119,7 +162,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
 
         setIsSaving(true);
         try {
-            const numero = `REM-${Date.now().toString(36).toUpperCase()}`;
+            const numero = (numeroRemision || calculateNextConsecutivo(selectedClienteId, remisiones) || `REM-${Date.now().toString(36).toUpperCase()}`).trim().toUpperCase();
             const total = calculateTotal();
 
             const { data: header, error: hError } = await supabase
@@ -159,6 +202,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                 alert('Remisión guardada con éxito.');
                 setShowForm(false);
                 setSelectedClienteId('');
+                setNumeroRemision('');
                 setRemissionItems([]);
                 setObservations('');
                 fetchRemisiones();
@@ -225,17 +269,33 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                     <button className="btn-expand" onClick={() => setShowForm(false)} style={{ fontSize: '1.5rem' }}>✕</button>
                 </div>
 
-                <div className="form-grid-modern" style={{ marginBottom: '2rem' }}>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+                    <div className="form-group" style={{ flex: '1' }}>
                         <label style={{ fontWeight: 700, marginBottom: '0.4rem', display: 'block', color: '#1e293b' }}>
                             Cliente <span style={{ color: '#ef4444' }}>*</span>
                         </label>
                         <ClientSearchSelect
                             clientes={clientes}
                             value={selectedClienteId}
-                            onChange={(id) => setSelectedClienteId(id)}
+                            onChange={(id) => handleClienteChange(id)}
                             placeholder="🔍 Buscar cliente por nombre, NIT, contacto o ciudad..."
                         />
+                    </div>
+                    <div className="form-group" style={{ maxWidth: '320px' }}>
+                        <label style={{ fontWeight: 700, marginBottom: '0.4rem', display: 'block', color: '#1e293b' }}>
+                            N° Consecutivo <span style={{ color: '#ef4444' }}>*</span>
+                        </label>
+                        <input
+                            type="text"
+                            className="input-field"
+                            value={numeroRemision}
+                            onChange={(e) => setNumeroRemision(e.target.value.toUpperCase())}
+                            placeholder="Ej: UN-2026-001"
+                            style={{ fontWeight: 700, letterSpacing: '0.5px', height: '42px', backgroundColor: '#f8fafc' }}
+                        />
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginTop: '0.3rem' }}>
+                            Generado: 2 letras cliente + año + consecutivo
+                        </span>
                     </div>
                 </div>
 
@@ -373,7 +433,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                             </button>
                         )}
                     </div>
-                    <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ padding: '0.8rem 1.5rem', whiteSpace: 'nowrap' }}>
+                    <button className="btn btn-primary" onClick={() => { setSelectedClienteId(''); setNumeroRemision(''); setRemissionItems([]); setObservations(''); setShowForm(true); }} style={{ padding: '0.8rem 1.5rem', whiteSpace: 'nowrap' }}>
                         + Nueva Remisión
                     </button>
                 </div>

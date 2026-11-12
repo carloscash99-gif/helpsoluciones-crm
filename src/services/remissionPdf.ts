@@ -29,8 +29,8 @@ export const generateRemissionPDF = (data: RemissionPDFData) => {
     // 1. Header & Logo
     try {
         if (logoBase64) {
-            // El logo corporativo es JPEG en base64
-            doc.addImage(logoBase64, 'JPEG', 15, 12, 45, 15);
+            // El logo corporativo horizontal en alta definición (PNG)
+            doc.addImage(logoBase64, 'PNG', 15, 12, 60, 10.25);
         }
     } catch (e) {
         console.error('Error adding logo to PDF', e);
@@ -42,8 +42,8 @@ export const generateRemissionPDF = (data: RemissionPDFData) => {
     doc.text('REMISIÓN DE ENTREGA', pageWidth - 15, 20, { align: 'right' });
 
     doc.setFontSize(12);
-    doc.setTextColor(100);
-    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60);
+    doc.setFont('helvetica', 'bold');
     doc.text(`N°: ${data.numero}`, pageWidth - 15, 28, { align: 'right' });
     
     let fechaFormateada = data.fecha;
@@ -51,16 +51,20 @@ export const generateRemissionPDF = (data: RemissionPDFData) => {
         const d = new Date(data.fecha);
         fechaFormateada = isNaN(d.getTime()) ? data.fecha : d.toLocaleDateString('es-CO');
     } catch (_) {}
-    doc.text(`Fecha: ${fechaFormateada}`, pageWidth - 15, 34, { align: 'right' });
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Fecha: ${fechaFormateada}`, pageWidth - 15, 35, { align: 'right' });
 
     // 2. Company Info (Static)
-    doc.setFontSize(9);
-    doc.setTextColor(0);
+    doc.setFontSize(8.5);
+    doc.setTextColor(30);
     doc.setFont('helvetica', 'bold');
-    doc.text('HELP SOLUCIONES INFORMATICAS HSI SAS', 15, 33);
+    doc.text('HELP SOLUCIONES INFORMATICAS HSI SAS', 15, 28);
     doc.setFont('helvetica', 'normal');
-    doc.text('NIT: 900686378-7', 15, 38);
-    doc.text('Celular: 3043358650 - 3003453610 | gerencia@helpsoluciones.com.co', 15, 43);
+    doc.text('NIT: 900686378-7', 15, 33);
+    doc.text('Celular: 3043358650 - 3003453610 | gerencia@helpsoluciones.com.co', 15, 38);
+    doc.text('Bogotá D.C. - Colombia', 15, 43);
 
     // 3. Client Info
     doc.setDrawColor(200);
