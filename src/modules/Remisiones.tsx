@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { generateRemissionPDF } from '../services/remissionPdf';
+import { ClientSearchSelect } from '../components/ClientSearchSelect';
+import ProductSearchSelect from '../components/ProductSearchSelect';
 import { type Cliente, type Producto, type AppUser } from '../types/crm';
 
 interface IProps {
@@ -34,6 +36,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
     const [remisiones, setRemisiones] = useState<Remission[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [filtroTabla, setFiltroTabla] = useState('');
     
     // Form State
     const [selectedClienteId, setSelectedClienteId] = useState('');
@@ -43,7 +46,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
 
     useEffect(() => {
         fetchRemisiones();
-    }, []);
+    }, [clientes]);
 
     const fetchRemisiones = async () => {
         setLoading(true);
@@ -84,7 +87,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                 if (field === 'producto_id') {
                     const prod = productos.find(p => p.id === value);
                     updated.descripcion = prod?.nombre || '';
-                    updated.precio_unitario = Math.round((prod?.precioCompra || 0) * 1.15 * 100) / 100; // precio de venta sugerido
+                    updated.precio_unitario = Math.round((prod?.precioCompra || 0) * 1.15 * 100) / 100; // precio sugerido
                 }
                 updated.subtotal = (Number(updated.cantidad) || 0) * (Number(updated.precio_unitario) || 0);
                 return updated;
@@ -116,7 +119,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
 
         setIsSaving(true);
         try {
-            const numero = `REM-${Date.now().toString(36).toUpperCase()}`; // único (antes se repetía cada ~17 min)
+            const numero = `REM-${Date.now().toString(36).toUpperCase()}`;
             const total = calculateTotal();
 
             const { data: header, error: hError } = await supabase
@@ -131,8 +134,8 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                 }])
                 .select();
 
-            if (hError || !header) {
-                alert('Error al guardar cabecera: ' + hError?.message);
+            if (hError || !header || header.length === 0) {
+                alert('Error al guardar cabecera: ' + (hError?.message || 'Sin respuesta'));
                 setIsSaving(false);
                 return;
             }
@@ -141,9 +144,9 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                 remision_id: header[0].id,
                 producto_id: item.producto_id,
                 descripcion: item.descripcion || 'Producto',
-                cantidad: item.cantidad,
-                precio_unitario: item.precio_unitario,
-                subtotal: item.subtotal
+                cantidad: Number(item.cantidad) || 1,
+                precio_unitario: Number(item.precio_unitario) || 0,
+                subtotal: Number(item.subtotal) || 0
             }));
 
             const { error: dError } = await supabase
@@ -160,40 +163,59 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                 setObservations('');
                 fetchRemisiones();
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error in handleSave:', err);
-            alert('Error inesperado al guardar');
+            alert('Error inesperado al guardar: ' + (err.message || ''));
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleDownloadPDF = (r: Remission) => {
-        const clienteObj = r.cliente || clientes.find(c => c.id === r.cliente_id);
-        if (!clienteObj) {
-            alert('Datos de cliente no encontrados.');
-            return;
+    const handleDownloadPDF = async (r: Remission) => {
+        try {
+            let clienteObj = r.cliente || clientes.find(c => c.id === r.cliente_id);
+            if (!clienteObj && r.cliente_id) {
+                // Intento directo a la base de datos si aún no estaba en memoria
+                const { data: cData } = await supabase.from('clientes').select('*').eq('id', r.cliente_id).maybeSingle();
+                if (cData) clienteObj = cData;
+            }
+
+            const clienteFinal = {
+                nombre: clienteObj?.nombre || 'Cliente General',
+                nit: clienteObj?.nit || 'N/A',
+                direccion: clienteObj?.direccion || 'N/A',
+                telefono: clienteObj?.telefono || 'N/A',
+                correo: clienteObj?.correo || 'N/A'
+            };
+
+            generateRemissionPDF({
+                numero: r.numero,
+                fecha: r.fecha,
+                cliente: clienteFinal,
+                items: (r.detalles || []).map(d => ({
+                    descripcion: d.descripcion,
+                    cantidad: Number(d.cantidad) || 0,
+                    precio_unitario: Number(d.precio_unitario) || 0,
+                    subtotal: Number(d.subtotal) || 0
+                })),
+                total: Number(r.total) || 0,
+                observaciones: r.observaciones
+            });
+        } catch (err: any) {
+            console.error('Error al generar PDF de remisión:', err);
+            alert('Error al generar PDF: ' + (err.message || 'Error desconocido'));
         }
-        generateRemissionPDF({
-            numero: r.numero,
-            fecha: r.fecha,
-            cliente: {
-                nombre: clienteObj.nombre,
-                nit: clienteObj.nit,
-                direccion: clienteObj.direccion,
-                telefono: clienteObj.telefono,
-                correo: clienteObj.correo
-            },
-            items: (r.detalles || []).map(d => ({
-                descripcion: d.descripcion,
-                cantidad: d.cantidad,
-                precio_unitario: d.precio_unitario,
-                subtotal: d.subtotal
-            })),
-            total: r.total,
-            observaciones: r.observaciones
-        });
     };
+
+    const remisionesFiltradas = remisiones.filter(r => {
+        if (!filtroTabla.trim()) return true;
+        const term = filtroTabla.toLowerCase();
+        const numMatch = (r.numero || '').toLowerCase().includes(term);
+        const cliMatch = (r.cliente?.nombre || '').toLowerCase().includes(term);
+        const nitMatch = (r.cliente?.nit || '').toLowerCase().includes(term);
+        const obsMatch = (r.observaciones || '').toLowerCase().includes(term);
+        return numMatch || cliMatch || nitMatch || obsMatch;
+    });
 
     if (showForm) {
         return (
@@ -204,16 +226,16 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                 </div>
 
                 <div className="form-grid-modern" style={{ marginBottom: '2rem' }}>
-                    <div className="form-group">
-                        <label style={{ fontWeight: 700 }}>Cliente</label>
-                        <select 
-                            className="input-field"
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontWeight: 700, marginBottom: '0.4rem', display: 'block', color: '#1e293b' }}>
+                            Cliente <span style={{ color: '#ef4444' }}>*</span>
+                        </label>
+                        <ClientSearchSelect
+                            clientes={clientes}
                             value={selectedClienteId}
-                            onChange={(e) => setSelectedClienteId(e.target.value)}
-                        >
-                            <option value="">-- Seleccione Cliente --</option>
-                            {(clientes || []).map(c => <option key={c.id} value={c.id}>{c.nombre} ({c.nit})</option>)}
-                        </select>
+                            onChange={(id) => setSelectedClienteId(id)}
+                            placeholder="🔍 Buscar cliente por nombre, NIT, contacto o ciudad..."
+                        />
                     </div>
                 </div>
 
@@ -227,7 +249,7 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                         <table className="data-table" style={{ margin: 0 }}>
                             <thead>
                                 <tr>
-                                    <th>Producto</th>
+                                    <th style={{ minWidth: '280px' }}>Producto</th>
                                     <th style={{ width: '100px' }}>Cant.</th>
                                     <th style={{ width: '150px' }}>P. Unitario</th>
                                     <th style={{ width: '150px' }}>Subtotal</th>
@@ -235,45 +257,51 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                                 </tr>
                             </thead>
                             <tbody>
-                                {remissionItems.map((item) => (
-                                    <tr key={item.id}>
-                                        <td>
-                                            <select 
-                                                className="input-field"
-                                                style={{ border: 'none', background: 'transparent' }}
-                                                value={item.producto_id || ''}
-                                                onChange={(e) => handleUpdateItem(item.id!, 'producto_id', e.target.value)}
-                                            >
-                                                <option value="">-- Seleccionar --</option>
-                                                {(productos || []).map(p => <option key={p.id} value={p.id}>[{p.numPart}] {p.nombre}</option>)}
-                                            </select>
-                                        </td>
-                                        <td>
-                                            <input 
-                                                type="number" 
-                                                className="input-field"
-                                                style={{ border: 'none', background: 'transparent', textAlign: 'center' }}
-                                                value={item.cantidad}
-                                                onChange={(e) => handleUpdateItem(item.id!, 'cantidad', parseFloat(e.target.value))}
-                                            />
-                                        </td>
-                                        <td>
-                                            <input 
-                                                type="number" 
-                                                className="input-field"
-                                                style={{ border: 'none', background: 'transparent', textAlign: 'right' }}
-                                                value={item.precio_unitario}
-                                                onChange={(e) => handleUpdateItem(item.id!, 'precio_unitario', parseFloat(e.target.value))}
-                                            />
-                                        </td>
-                                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                                            ${(item.subtotal || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                                        </td>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <button className="btn-delete-icon" onClick={() => handleRemoveItem(item.id!)}>🗑️</button>
+                                {remissionItems.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8' }}>
+                                            No hay items agregados. Haga clic en <strong>+ Añadir Item</strong> para comenzar.
                                         </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    remissionItems.map((item) => (
+                                        <tr key={item.id}>
+                                            <td style={{ padding: '4px 8px' }}>
+                                                <ProductSearchSelect
+                                                    productos={productos}
+                                                    value={item.producto_id || ''}
+                                                    onChange={(val) => handleUpdateItem(item.id!, 'producto_id', val)}
+                                                    placeholder="-- Buscar producto o parte --"
+                                                />
+                                            </td>
+                                            <td>
+                                                <input 
+                                                    type="number" 
+                                                    min="1"
+                                                    className="input-field"
+                                                    style={{ border: 'none', background: 'transparent', textAlign: 'center' }}
+                                                    value={item.cantidad}
+                                                    onChange={(e) => handleUpdateItem(item.id!, 'cantidad', parseFloat(e.target.value) || 0)}
+                                                />
+                                            </td>
+                                            <td>
+                                                <input 
+                                                    type="number" 
+                                                    className="input-field"
+                                                    style={{ border: 'none', background: 'transparent', textAlign: 'right' }}
+                                                    value={item.precio_unitario}
+                                                    onChange={(e) => handleUpdateItem(item.id!, 'precio_unitario', parseFloat(e.target.value) || 0)}
+                                                />
+                                            </td>
+                                            <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                                                ${(item.subtotal || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <button className="btn-delete-icon" onClick={() => handleRemoveItem(item.id!)}>🗑️</button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                             <tfoot style={{ background: '#f8fafc' }}>
                                 <tr>
@@ -289,11 +317,11 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '2rem' }}>
-                    <label style={{ fontWeight: 700 }}>Observaciones</label>
+                    <label style={{ fontWeight: 700, color: '#1e293b' }}>Observaciones</label>
                     <textarea 
                         className="input-field"
                         style={{ height: '80px' }}
-                        placeholder="Notas adicionales..."
+                        placeholder="Notas adicionales para la entrega..."
                         value={observations}
                         onChange={(e) => setObservations(e.target.value)}
                     ></textarea>
@@ -311,14 +339,44 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div className="card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                    <h3 style={{ margin: 0, color: '#1e293b' }}>Historico de Remisiones</h3>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Gestión de documentos informativos de salida.</p>
+                    <h3 style={{ margin: 0, color: '#1e293b' }}>Histórico de Remisiones</h3>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Gestión y descarga de documentos de remisión de entrega.</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ padding: '0.8rem 1.5rem' }}>
-                    + Nueva Remisión
-                </button>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', width: '260px' }}>
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder="🔍 Buscar remisión o cliente..."
+                            value={filtroTabla}
+                            onChange={(e) => setFiltroTabla(e.target.value)}
+                            style={{ paddingLeft: '2rem', height: '38px', fontSize: '0.9rem' }}
+                        />
+                        {filtroTabla && (
+                            <button
+                                type="button"
+                                onClick={() => setFiltroTabla('')}
+                                style={{
+                                    position: 'absolute',
+                                    right: '8px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    cursor: 'pointer',
+                                    color: '#94a3b8'
+                                }}
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
+                    <button className="btn btn-primary" onClick={() => setShowForm(true)} style={{ padding: '0.8rem 1.5rem', whiteSpace: 'nowrap' }}>
+                        + Nueva Remisión
+                    </button>
+                </div>
             </div>
 
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -341,23 +399,23 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                                         Cargando remisiones...
                                     </td>
                                 </tr>
-                            ) : remisiones.length === 0 ? (
+                            ) : remisionesFiltradas.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                                        No se encontraron remisiones.
+                                        {filtroTabla ? 'No se encontraron remisiones que coincidan con la búsqueda.' : 'No se encontraron remisiones registradas.'}
                                     </td>
                                 </tr>
                             ) : (
-                                remisiones.map((r) => (
+                                remisionesFiltradas.map((r) => (
                                     <tr key={r.id}>
                                         <td style={{ fontWeight: 700, color: '#1e293b' }}>{r.numero}</td>
-                                        <td>{new Date(r.fecha).toLocaleDateString()}</td>
+                                        <td>{new Date(r.fecha).toLocaleDateString('es-CO')}</td>
                                         <td>
                                             <div style={{ fontWeight: 600 }}>{r.cliente?.nombre || 'Buscando...'}</div>
                                             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{r.cliente?.nit}</div>
                                         </td>
                                         <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                                            ${r.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                            ${(Number(r.total) || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
                                             <span className="status-badge" style={{ background: '#dcfce7', color: '#166534' }}>
@@ -368,8 +426,8 @@ const RemisionesModule: React.FC<IProps> = ({ clientes = [], productos = [], cur
                                             <button 
                                                 className="btn-download" 
                                                 onClick={() => handleDownloadPDF(r)}
-                                                title="Descargar PDF"
-                                                style={{ fontSize: '1.2rem' }}
+                                                title="Descargar PDF de Remisión"
+                                                style={{ fontSize: '1.2rem', cursor: 'pointer', background: 'transparent', border: 'none' }}
                                             >
                                                 📄
                                             </button>
