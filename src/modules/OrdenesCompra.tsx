@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { Proveedor, Producto, OrdenCompra, OrdenCompraItem, AppUser, Alquiler } from '../App';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { logoBase64 } from '../assets/logoBase64';
+import { logoHorizontalBase64 } from '../assets/logoBase64';
 import ProductSearchSelect from '../components/ProductSearchSelect';
 import { hoyColombia } from '../utils/fecha';
 
@@ -171,7 +171,7 @@ const OrdenesCompraModule: React.FC<IProps> = ({ proveedores, productos, alquile
         try {
             doc.setFillColor(255, 255, 255);
             doc.roundedRect(8, 10, 68, 20, 2.5, 2.5, 'F');
-            doc.addImage(logoBase64, 'PNG', 11, 14.7, 62, 10.6);
+            doc.addImage(logoHorizontalBase64, 'PNG', 11, 14.7, 62, 10.6);
         } catch (e) {
             console.error("Error drawing logo in header", e);
         }

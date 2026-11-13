@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { logoBase64 } from '../assets/logoBase64';
+import { logoHorizontalBase64 } from '../assets/logoBase64';
 
 export interface RemissionPDFData {
     numero: string;
@@ -28,9 +28,9 @@ export const generateRemissionPDF = (data: RemissionPDFData) => {
 
     // 1. Header & Logo
     try {
-        if (logoBase64) {
+        if (logoHorizontalBase64) {
             // El logo corporativo horizontal en alta definición (PNG)
-            doc.addImage(logoBase64, 'PNG', 15, 12, 60, 10.25);
+            doc.addImage(logoHorizontalBase64, 'PNG', 15, 12, 60, 10.25);
         }
     } catch (e) {
         console.error('Error adding logo to PDF', e);

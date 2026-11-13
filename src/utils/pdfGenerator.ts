@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { logoBase64 } from '../assets/logoBase64';
+import { logoHorizontalBase64 } from '../assets/logoBase64';
 import type { Cliente, Producto } from '../App';
 import { hoyColombia } from '../utils/fecha';
 
@@ -41,7 +41,7 @@ export const generateQuotationPDF = (data: PDFData, action: 'save' | 'view' = 's
         try {
             doc.setFillColor(255, 255, 255);
             doc.roundedRect(8, 10, 68, 20, 2.5, 2.5, 'F');
-            doc.addImage(logoBase64, 'PNG', 11, 14.7, 62, 10.6);
+            doc.addImage(logoHorizontalBase64, 'PNG', 11, 14.7, 62, 10.6);
         } catch (e) {
             console.error("Error drawing logo in header", e);
         }
@@ -258,7 +258,7 @@ export const generateCommercialReportPDF = (report: CommercialReportData) => {
         try {
             doc.setFillColor(255, 255, 255);
             doc.roundedRect(8, 7.5, 68, 20, 2.5, 2.5, 'F');
-            doc.addImage(logoBase64, 'PNG', 11, 12.2, 62, 10.6);
+            doc.addImage(logoHorizontalBase64, 'PNG', 11, 12.2, 62, 10.6);
         } catch (e) {}
 
         doc.setFontSize(18);

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { logoBase64 } from '../assets/logoBase64';
+import { logoBase64, logoHorizontalBase64 } from '../assets/logoBase64';
 import type { Alquiler, Cliente, AppUser } from '../App';
 import { hoyColombia } from '../utils/fecha';
 
@@ -130,7 +130,7 @@ const AlquileresModule: React.FC<IProps> = ({ alquileres, clientes, onAddAlquile
             try {
                 doc.setFillColor(255, 255, 255);
                 doc.roundedRect(8, 12, 68, 21, 2.5, 2.5, 'F');
-                doc.addImage(logoBase64, 'PNG', 11, 17.2, 62, 10.6);
+                doc.addImage(logoHorizontalBase64, 'PNG', 11, 17.2, 62, 10.6);
             } catch (e) {
                 console.error("Error adding logo to PDF:", e);
             }
@@ -329,7 +329,7 @@ const AlquileresModule: React.FC<IProps> = ({ alquileres, clientes, onAddAlquile
 
         // Logo
         if (logoBase64) {
-            doc.addImage(logoBase64, 'PNG', marginX, startY + 5, 60, 10.25);
+            doc.addImage(logoHorizontalBase64, 'PNG', marginX, startY + 5, 60, 10.25);
         }
 
         // Header Text

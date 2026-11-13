@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { logoBase64 } from '../assets/logoBase64';
+import { logoHorizontalBase64 } from '../assets/logoBase64';
 
 export interface ReportData {
     clienteNombre: string;
@@ -25,7 +25,7 @@ export const generateReportPDF = (data: ReportData) => {
         try {
             doc.setFillColor(255, 255, 255);
             doc.roundedRect(8, 10, 68, 20, 2.5, 2.5, 'F');
-            doc.addImage(logoBase64, 'PNG', 11, 14.7, 62, 10.6);
+            doc.addImage(logoHorizontalBase64, 'PNG', 11, 14.7, 62, 10.6);
         } catch (e) {
             console.error("Error adding logo", e);
         }
