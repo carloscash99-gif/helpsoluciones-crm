@@ -37,21 +37,22 @@ export const generateQuotationPDF = (data: PDFData, action: 'save' | 'view' = 's
         doc.setTextColor(255, 255, 255);
         doc.setFont("helvetica", "bold");
 
-        // Logo in Header (White background box)
+        // Logo in Header (Card blanca redondeada moderna con proporción horizontal)
         try {
             doc.setFillColor(255, 255, 255);
-            doc.rect(5, 5, 30, 30, 'F');
-            doc.addImage(logoBase64, 'JPEG', 5, 5, 30, 30);
+            doc.roundedRect(8, 10, 68, 20, 2.5, 2.5, 'F');
+            doc.addImage(logoBase64, 'PNG', 11, 14.7, 62, 10.6);
         } catch (e) {
             console.error("Error drawing logo in header", e);
         }
 
-        doc.text("HELP SOLUCIONES INFORMATICAS", 40, 22);
+        doc.setFontSize(18);
+        doc.text("COTIZACIÓN COMERCIAL", 138, 20, { align: 'center' });
 
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
-        doc.text(`Cotización N°: ${data.consecutivo}`, 200, 27, { align: 'right' });
-        doc.text("Expertos en Tecnología | Servicios y Productos", 40, 35);
+        doc.text(`Cotización N°: ${data.consecutivo}`, 200, 32, { align: 'right' });
+        doc.text("Expertos en Tecnología | Servicios y Productos", 138, 28, { align: 'center' });
 
         // Client Info Box
         doc.setTextColor(0, 0, 0);
@@ -256,14 +257,14 @@ export const generateCommercialReportPDF = (report: CommercialReportData) => {
         
         try {
             doc.setFillColor(255, 255, 255);
-            doc.rect(10, 5, 25, 25, 'F');
-            doc.addImage(logoBase64, 'JPEG', 10, 5, 25, 25);
+            doc.roundedRect(8, 7.5, 68, 20, 2.5, 2.5, 'F');
+            doc.addImage(logoBase64, 'PNG', 11, 12.2, 62, 10.6);
         } catch (e) {}
 
         doc.setFontSize(18);
         doc.setTextColor(255, 255, 255);
         doc.setFont("helvetica", "bold");
-        doc.text("INFORME DE GESTIÓN COMERCIAL", 40, 18);
+        doc.text("INFORME DE GESTIÓN COMERCIAL", 138, 18, { align: 'center' });
         
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");

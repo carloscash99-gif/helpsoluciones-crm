@@ -128,8 +128,9 @@ const AlquileresModule: React.FC<IProps> = ({ alquileres, clientes, onAddAlquile
 
         if (logoBase64) {
             try {
-                // Ensure it's JPEG since that's what logoBase64.ts contains
-                doc.addImage(logoBase64, 'JPEG', marginX, 5, 35, 35, undefined, 'FAST');
+                doc.setFillColor(255, 255, 255);
+                doc.roundedRect(8, 12, 68, 21, 2.5, 2.5, 'F');
+                doc.addImage(logoBase64, 'PNG', 11, 17.2, 62, 10.6);
             } catch (e) {
                 console.error("Error adding logo to PDF:", e);
             }
@@ -138,10 +139,10 @@ const AlquileresModule: React.FC<IProps> = ({ alquileres, clientes, onAddAlquile
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text('ACTA DE ENTREGA', pageWidth / 2 + 10, 18, { align: 'center' });
+        doc.text('ACTA DE ENTREGA', 140, 20, { align: 'center' });
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text('Equipo en Modalidad de Alquiler', pageWidth / 2 + 10, 26, { align: 'center' });
+        doc.text('Equipo en Modalidad de Alquiler', 140, 28, { align: 'center' });
 
         doc.setFontSize(9);
         doc.text(`Fecha: ${new Date().toLocaleDateString('es-CO')}`, pageWidth - marginX, 38, { align: 'right' });
@@ -328,7 +329,7 @@ const AlquileresModule: React.FC<IProps> = ({ alquileres, clientes, onAddAlquile
 
         // Logo
         if (logoBase64) {
-            doc.addImage(logoBase64, 'PNG', marginX, startY, 30, 30, '', 'FAST');
+            doc.addImage(logoBase64, 'PNG', marginX, startY + 5, 60, 10.25);
         }
 
         // Header Text

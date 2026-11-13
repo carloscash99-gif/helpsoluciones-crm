@@ -167,20 +167,21 @@ const OrdenesCompraModule: React.FC<IProps> = ({ proveedores, productos, alquile
         doc.setFontSize(22);
         doc.setFont('helvetica', 'bold');
 
-        // Logo in Header
+        // Logo in Header (Card blanca redondeada moderna con proporción horizontal exacta)
         try {
             doc.setFillColor(255, 255, 255);
-            doc.rect(5, 5, 30, 30, 'F');
-            doc.addImage(logoBase64, 'JPEG', 5, 5, 30, 30);
+            doc.roundedRect(8, 10, 68, 20, 2.5, 2.5, 'F');
+            doc.addImage(logoBase64, 'PNG', 11, 14.7, 62, 10.6);
         } catch (e) {
             console.error("Error drawing logo in header", e);
         }
 
-        doc.text('ORDEN DE COMPRA', 105, 20, { align: 'center' });
+        doc.setFontSize(20);
+        doc.text('ORDEN DE COMPRA', 138, 22, { align: 'center' });
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Consecutivo: ${oc.consecutivo}`, 200, 27, { align: 'right' });
+        doc.text(`Consecutivo: ${oc.consecutivo}`, 200, 32, { align: 'right' });
 
         // Company Details (Left)
         doc.setTextColor(0, 0, 0);

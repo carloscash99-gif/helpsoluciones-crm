@@ -24,17 +24,17 @@ export const generateReportPDF = (data: ReportData) => {
         // Logo
         try {
             doc.setFillColor(255, 255, 255);
-            doc.rect(10, 5, 30, 30, 'F');
-            doc.addImage(logoBase64, 'JPEG', 10, 5, 30, 30);
+            doc.roundedRect(8, 10, 68, 20, 2.5, 2.5, 'F');
+            doc.addImage(logoBase64, 'PNG', 11, 14.7, 62, 10.6);
         } catch (e) {
             console.error("Error adding logo", e);
         }
 
         // Title
-        doc.setFontSize(22);
+        doc.setFontSize(20);
         doc.setTextColor(255, 255, 255);
         doc.setFont("helvetica", "bold");
-        doc.text("INFORME DE EJECUCIÓN", 45, 22);
+        doc.text("INFORME DE EJECUCIÓN", 138, 22, { align: 'center' });
         
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
