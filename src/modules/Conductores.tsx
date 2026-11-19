@@ -198,6 +198,43 @@ const ConductoresModule: React.FC<IProps> = ({
         window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`, '_blank');
     };
 
+    const openWaze = (addressOrCoords: string) => {
+        const target = cleanLocation(addressOrCoords);
+        if (!target) {
+            alert('No se encontró dirección o coordenadas para esta parada.');
+            return;
+        }
+        const coordMatch = target.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+        if (coordMatch) {
+            // Con coordenadas GPS exactas abre Waze e inicia la navegación directa
+            window.open(`https://waze.com/ul?ll=${coordMatch[1]},${coordMatch[2]}&navigate=yes`, '_blank');
+        } else {
+            // Con dirección o nombre busca y navega en Waze
+            window.open(`https://waze.com/ul?q=${encodeURIComponent(target)}&navigate=yes`, '_blank');
+        }
+    };
+
+    const openFirstSelectedInWaze = () => {
+        if (selectedTasks.length === 0) return;
+        const selectedDespachos = despachos.filter(d => selectedTasks.includes(d.id));
+        const selectedOCs = ordenesCompra.filter(oc => selectedTasks.includes(oc.id));
+        const selectedDevs = devoluciones.filter(dev => selectedTasks.includes(dev.id));
+        const selectedReps = reparaciones.filter(r => selectedTasks.includes(r.id));
+
+        const firstLoc = [
+            ...selectedDespachos.map(getDespachoLocation),
+            ...selectedOCs.map(getOCLocation),
+            ...selectedDevs.map(getDevolucionLocation),
+            ...selectedReps.map(getReparacionLocation)
+        ].find(p => !!p && p.trim() !== '');
+
+        if (!firstLoc) {
+            alert('No se encontró ubicación válida en las paradas seleccionadas.');
+            return;
+        }
+        openWaze(firstLoc);
+    };
+
     const toggleTaskSelection = (id: string) => {
         setSelectedTasks(prev =>
             prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
@@ -390,13 +427,24 @@ const ConductoresModule: React.FC<IProps> = ({
                             <h3>Hoja de Ruta: {currentConductor?.nombre}</h3>
                             <p>{currentConductor?.placaVehiculo} • {selectedTasks.length} paradas seleccionadas</p>
                         </div>
-                        <button
-                            className="btn-optimize"
-                            disabled={selectedTasks.length === 0}
-                            onClick={generateOptimizedRoute}
-                        >
-                            🚀 Generar Ruta Optimizada ({selectedTasks.length})
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                            <button
+                                className="btn-waze-header"
+                                disabled={selectedTasks.length === 0}
+                                onClick={openFirstSelectedInWaze}
+                                title="Abrir la 1ª parada seleccionada directamente en Waze"
+                            >
+                                🚗 Waze (1ª Parada)
+                            </button>
+                            <button
+                                className="btn-optimize"
+                                disabled={selectedTasks.length === 0}
+                                onClick={generateOptimizedRoute}
+                                title="Generar ruta multipunto completa en Google Maps"
+                            >
+                                🚀 Ruta Maps ({selectedTasks.length})
+                            </button>
+                        </div>
                     </div>
 
                     <div className="tasks-grid">
@@ -427,8 +475,11 @@ const ConductoresModule: React.FC<IProps> = ({
                                         )}
                                     </div>
                                     <div className="task-actions">
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Localizar</button>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                                                <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Maps</button>
+                                                <button className="btn-waze" onClick={() => openWaze(targetLoc)} title="Navegar con Waze">🚗 Waze</button>
+                                            </div>
                                             <button
                                                 className="btn-complete"
                                                 onClick={() => markAsCompleted(d, 'despacho')}
@@ -482,26 +533,31 @@ const ConductoresModule: React.FC<IProps> = ({
                                         )}
                                     </div>
                                     <div className="task-actions">
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Localizar</button>
-                                            <button
-                                                className="btn-verify"
-                                                onClick={() => {
-                                                    setVerifyingOC(oc);
-                                                    setVerificationMatches({});
-                                                }}
-                                                title="Verificar items vs OC"
-                                            >
-                                                🔍 Verificar
-                                            </button>
-                                            <button
-                                                className="btn-complete"
-                                                onClick={() => markAsCompleted(oc, 'oc')}
-                                                disabled={oc.estado === 'Recogido'}
-                                                style={{ backgroundColor: '#8b5cf6' }}
-                                            >
-                                                🏁 Recogido
-                                            </button>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                                                <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Maps</button>
+                                                <button className="btn-waze" onClick={() => openWaze(targetLoc)} title="Navegar con Waze">🚗 Waze</button>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                                                <button
+                                                    className="btn-verify"
+                                                    onClick={() => {
+                                                        setVerifyingOC(oc);
+                                                        setVerificationMatches({});
+                                                    }}
+                                                    title="Verificar items vs OC"
+                                                >
+                                                    🔍 Verificar
+                                                </button>
+                                                <button
+                                                    className="btn-complete"
+                                                    onClick={() => markAsCompleted(oc, 'oc')}
+                                                    disabled={oc.estado === 'Recogido'}
+                                                    style={{ backgroundColor: '#8b5cf6' }}
+                                                >
+                                                    🏁 Recogido
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="upload-grid">
                                             <div className="upload-group">
@@ -548,8 +604,11 @@ const ConductoresModule: React.FC<IProps> = ({
                                         )}
                                     </div>
                                     <div className="task-actions">
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Localizar</button>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                                                <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Maps</button>
+                                                <button className="btn-waze" onClick={() => openWaze(targetLoc)} title="Navegar con Waze">🚗 Waze</button>
+                                            </div>
                                             <button
                                                 className="btn-complete"
                                                 onClick={() => markAsCompleted(dev, 'dev')}
@@ -605,8 +664,11 @@ const ConductoresModule: React.FC<IProps> = ({
                                         )}
                                     </div>
                                     <div className="task-actions">
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Localizar</button>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                                                <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Maps</button>
+                                                <button className="btn-waze" onClick={() => openWaze(targetLoc)} title="Navegar con Waze">🚗 Waze</button>
+                                            </div>
                                             <button
                                                 className="btn-complete"
                                                 onClick={() => markAsCompleted(r, 'rep')}
@@ -802,7 +864,13 @@ const ConductoresModule: React.FC<IProps> = ({
                 .status-tag.status-recogido { background: #f3e8ff; color: #7e22ce; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 800; }
                 .tasks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
                 .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-                .btn-geo { background: #3b82f6; }
+                .btn-geo { background: #3b82f6; color: white; border: none; padding: 0.5rem 0.2rem; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.8rem; text-align: center; transition: all 0.2s; }
+                .btn-geo:hover { background: #2563eb; transform: translateY(-1px); }
+                .btn-waze { background: #33ccff; color: #082f49; border: none; padding: 0.5rem 0.2rem; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.8rem; text-align: center; transition: all 0.2s; }
+                .btn-waze:hover { background: #00c3ff; transform: translateY(-1px); }
+                .btn-waze-header { background: #33ccff; color: #082f49; border: none; padding: 0.6rem 1.1rem; border-radius: 8px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.3rem; }
+                .btn-waze-header:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(51, 204, 255, 0.35); }
+                .btn-waze-header:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
                 .upload-group label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.2rem; color: var(--text-muted); }
                 .upload-group input { font-size: 0.75rem; width: 100%; }
                 .upload-success { display: block; font-size: 0.7rem; color: #059669; font-weight: 600; margin-top: 0.1rem; }
