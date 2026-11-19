@@ -117,8 +117,85 @@ const ConductoresModule: React.FC<IProps> = ({
         alert('✅ Archivo subido exitosamente.');
     };
 
-    const openMap = (address: string) => {
-        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, '_blank');
+    // Helpers to find provider and client robustly by ID or name
+    const findProvider = (id?: string, name?: string): Proveedor | undefined => {
+        if (id) {
+            const byId = proveedores.find(p => p.id === id);
+            if (byId) return byId;
+        }
+        if (name) {
+            const clean = name.toLowerCase().trim();
+            const byExact = proveedores.find(p => p.nombre && p.nombre.toLowerCase().trim() === clean);
+            if (byExact) return byExact;
+            const byPartial = proveedores.find(p => p.nombre && (
+                p.nombre.toLowerCase().includes(clean) || clean.includes(p.nombre.toLowerCase().trim())
+            ));
+            if (byPartial) return byPartial;
+        }
+        return undefined;
+    };
+
+    const findClient = (id?: string, name?: string): Cliente | undefined => {
+        if (id) {
+            const byId = clientes.find(c => c.id === id);
+            if (byId) return byId;
+        }
+        if (name) {
+            const clean = name.toLowerCase().trim();
+            const byExact = clientes.find(c => c.nombre && c.nombre.toLowerCase().trim() === clean);
+            if (byExact) return byExact;
+            const byPartial = clientes.find(c => c.nombre && (
+                c.nombre.toLowerCase().includes(clean) || clean.includes(c.nombre.toLowerCase().trim())
+            ));
+            if (byPartial) return byPartial;
+        }
+        return undefined;
+    };
+
+    const cleanLocation = (target?: string | null): string => {
+        if (!target) return '';
+        const trimmed = target.trim();
+        // Check if target is a coordinate pair: "lat, lng" or "lat,lng"
+        const coordMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+        if (coordMatch) {
+            return `${coordMatch[1]},${coordMatch[2]}`;
+        }
+        return trimmed;
+    };
+
+    const getOCLocation = (oc: OrdenCompra): string => {
+        const prov = findProvider(oc.proveedorId, oc.nombreProveedor);
+        // Priority: provider coordinates (just updated) > provider address > oc georeferencia > oc name
+        const raw = prov?.coordenadas || prov?.direccion || oc.georeferencia || oc.nombreProveedor;
+        return cleanLocation(raw);
+    };
+
+    const getDespachoLocation = (d: Despacho): string => {
+        const client = findClient(d.clienteId, d.clienteNombre);
+        const raw = client?.coordenadas || d.georeferencia || d.direccion || client?.direccion || d.clienteNombre;
+        return cleanLocation(raw);
+    };
+
+    const getDevolucionLocation = (dev: Devolucion): string => {
+        const prov = findProvider(dev.proveedorId, dev.nombreProveedor);
+        const raw = prov?.coordenadas || prov?.direccion || dev.nombreProveedor;
+        return cleanLocation(raw);
+    };
+
+    const getReparacionLocation = (r: Reparacion): string => {
+        const prov = findProvider(r.proveedorId, r.proveedorNombre);
+        const client = findClient(r.clienteId, r.clienteNombre);
+        const raw = prov?.coordenadas || client?.coordenadas || prov?.direccion || client?.direccion || r.proveedorNombre || r.clienteNombre;
+        return cleanLocation(raw);
+    };
+
+    const openMap = (addressOrCoords: string) => {
+        const target = cleanLocation(addressOrCoords);
+        if (!target) {
+            alert('No se encontró dirección o coordenadas para esta parada.');
+            return;
+        }
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`, '_blank');
     };
 
     const toggleTaskSelection = (id: string) => {
@@ -130,28 +207,16 @@ const ConductoresModule: React.FC<IProps> = ({
     const generateOptimizedRoute = () => {
         const selectedDespachos = despachos.filter(d => selectedTasks.includes(d.id));
         const selectedOCs = ordenesCompra.filter(oc => selectedTasks.includes(oc.id));
+        const selectedDevs = devoluciones.filter(dev => selectedTasks.includes(dev.id));
+        const selectedReps = reparaciones.filter(r => selectedTasks.includes(r.id));
 
         const routePoints = [
             "Help Soluciones Informáticas", // Punto de partida (Sede Empresa)
-            ...selectedDespachos.map(d => {
-                // Priority: georeferencia (captured) > client coordinates > textual address
-                const client = clientes.find(c => c.id === d.clienteId);
-                return d.georeferencia || client?.coordenadas || d.direccion;
-            }),
-            ...selectedOCs.map(oc => {
-                // Priority: georeferencia (captured) > provider coordinates > provider address
-                const prov = proveedores.find(p => p.id === oc.proveedorId);
-                return oc.georeferencia || prov?.coordenadas || prov?.direccion || oc.nombreProveedor;
-            }),
-            ...devoluciones.filter(dev => selectedTasks.includes(dev.id)).map(dev => {
-                const prov = proveedores.find(p => p.id === dev.proveedorId);
-                return prov?.coordenadas || prov?.direccion || dev.nombreProveedor;
-            }),
-            ...reparaciones.filter(r => selectedTasks.includes(r.id)).map(r => {
-                const prov = proveedores.find(p => p.id === r.proveedorId);
-                return prov?.coordenadas || prov?.direccion || r.proveedorNombre || r.clienteNombre;
-            })
-        ].filter(p => !!p);
+            ...selectedDespachos.map(getDespachoLocation),
+            ...selectedOCs.map(getOCLocation),
+            ...selectedDevs.map(getDevolucionLocation),
+            ...selectedReps.map(getReparacionLocation)
+        ].filter(p => !!p && p.trim() !== '');
 
         if (routePoints.length === 0) {
             alert('Seleccione al menos una parada para la ruta.');
@@ -337,7 +402,10 @@ const ConductoresModule: React.FC<IProps> = ({
                     <div className="tasks-grid">
                         <div className="task-column">
                             <h4>📦 Entregas Pendientes</h4>
-                            {pendingDespachos.length > 0 ? pendingDespachos.map(d => (
+                            {pendingDespachos.length > 0 ? pendingDespachos.map(d => {
+                                const client = findClient(d.clienteId, d.clienteNombre);
+                                const targetLoc = getDespachoLocation(d);
+                                return (
                                 <div key={d.id} className={`task-card ${selectedTasks.includes(d.id) ? 'selected-task' : ''}`}>
                                     <div className="task-main">
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -351,11 +419,16 @@ const ConductoresModule: React.FC<IProps> = ({
                                         </div>
                                         <p>{d.clienteNombre}</p>
                                         <strong>OC: {d.consecutivoCotizacion}</strong>
-                                        <small>{d.direccion}</small>
+                                        <small>{d.direccion || client?.direccion || 'Sin dirección registrada'}</small>
+                                        {(client?.coordenadas || d.georeferencia) && (
+                                            <small style={{ display: 'block', color: 'var(--primary-blue)', fontWeight: 600 }}>
+                                                📍 {client?.coordenadas || d.georeferencia}
+                                            </small>
+                                        )}
                                     </div>
                                     <div className="task-actions">
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <button className="btn-geo" onClick={() => openMap(d.direccion)} title="Mapa">📍 Localizar</button>
+                                            <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Localizar</button>
                                             <button
                                                 className="btn-complete"
                                                 onClick={() => markAsCompleted(d, 'despacho')}
@@ -378,14 +451,17 @@ const ConductoresModule: React.FC<IProps> = ({
                                         </div>
                                     </div>
                                 </div>
-                            )) : <p className="empty-msg">No tiene entregas asignadas.</p>}
+                            );
+                            }) : <p className="empty-msg">No tiene entregas asignadas.</p>}
                         </div>
 
                         <div className="task-column">
                             <h4>🏭 Recogidas Pendientes</h4>
-                            {pendingOCs.length > 0 ? pendingOCs.map(oc => (
+                            {pendingOCs.length > 0 ? pendingOCs.map(oc => {
+                                const prov = findProvider(oc.proveedorId, oc.nombreProveedor);
+                                const targetLoc = getOCLocation(oc);
+                                return (
                                 <div key={oc.id} className={`task-card oc-task ${selectedTasks.includes(oc.id) ? 'selected-task' : ''}`}>
-                                    {/* ... existing OC card content ... */}
                                     <div className="task-main">
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <span className={`status-tag status-${oc.estado.toLowerCase().replace(' ', '-')}`}>{oc.estado}</span>
@@ -398,11 +474,16 @@ const ConductoresModule: React.FC<IProps> = ({
                                         </div>
                                         <p>{oc.nombreProveedor}</p>
                                         <strong>Recogida: {oc.consecutivo}</strong>
-                                        <small>Cargar al proveedor asignado</small>
+                                        <small style={{ display: 'block' }}>{prov?.direccion ? prov.direccion : 'Cargar al proveedor asignado'}</small>
+                                        {prov?.coordenadas && (
+                                            <small style={{ display: 'block', color: 'var(--primary-blue)', fontWeight: 600 }}>
+                                                📍 {prov.coordenadas}
+                                            </small>
+                                        )}
                                     </div>
                                     <div className="task-actions">
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <button className="btn-geo" onClick={() => openMap(oc.nombreProveedor)} title="Mapa">📍 Localizar</button>
+                                            <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Localizar</button>
                                             <button
                                                 className="btn-verify"
                                                 onClick={() => {
@@ -436,12 +517,16 @@ const ConductoresModule: React.FC<IProps> = ({
                                         </div>
                                     </div>
                                 </div>
-                            )) : <p className="empty-msg">No tiene recogidas asignadas.</p>}
+                            );
+                            }) : <p className="empty-msg">No tiene recogidas asignadas.</p>}
                         </div>
 
                         <div className="task-column">
                             <h4>🔙 Devoluciones Pendientes</h4>
-                            {pendingDevs.length > 0 ? pendingDevs.map(dev => (
+                            {pendingDevs.length > 0 ? pendingDevs.map(dev => {
+                                const prov = findProvider(dev.proveedorId, dev.nombreProveedor);
+                                const targetLoc = getDevolucionLocation(dev);
+                                return (
                                 <div key={dev.id} className={`task-card dev-task ${selectedTasks.includes(dev.id) ? 'selected-task' : ''}`} style={{ borderLeftColor: '#f59e0b' }}>
                                     <div className="task-main">
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -455,11 +540,16 @@ const ConductoresModule: React.FC<IProps> = ({
                                         </div>
                                         <p>{dev.nombreProveedor}</p>
                                         <strong>Devolución: {dev.consecutivo}</strong>
-                                        <small>Llevar al proveedor asignado</small>
+                                        <small style={{ display: 'block' }}>{prov?.direccion ? prov.direccion : 'Llevar al proveedor asignado'}</small>
+                                        {prov?.coordenadas && (
+                                            <small style={{ display: 'block', color: '#b45309', fontWeight: 600 }}>
+                                                📍 {prov.coordenadas}
+                                            </small>
+                                        )}
                                     </div>
                                     <div className="task-actions">
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <button className="btn-geo" onClick={() => openMap(dev.nombreProveedor)} title="Mapa">📍 Localizar</button>
+                                            <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Localizar</button>
                                             <button
                                                 className="btn-complete"
                                                 onClick={() => markAsCompleted(dev, 'dev')}
@@ -483,12 +573,17 @@ const ConductoresModule: React.FC<IProps> = ({
                                         </div>
                                     </div>
                                 </div>
-                            )) : <p className="empty-msg">No tiene devoluciones asignadas.</p>}
+                            );
+                            }) : <p className="empty-msg">No tiene devoluciones asignadas.</p>}
                         </div>
 
                         <div className="task-column">
                             <h4>🛠️ Reparaciones (Ext.)</h4>
-                            {pendingReps.length > 0 ? pendingReps.map(r => (
+                            {pendingReps.length > 0 ? pendingReps.map(r => {
+                                const prov = findProvider(r.proveedorId, r.proveedorNombre);
+                                const client = findClient(r.clienteId, r.clienteNombre);
+                                const targetLoc = getReparacionLocation(r);
+                                return (
                                 <div key={r.id} className={`task-card rep-task ${selectedTasks.includes(r.id) ? 'selected-task' : ''}`} style={{ borderLeftColor: '#0ea5e9' }}>
                                     <div className="task-main">
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -502,11 +597,16 @@ const ConductoresModule: React.FC<IProps> = ({
                                         </div>
                                         <p>{r.proveedorNombre || 'Proveedor Externo'}</p>
                                         <strong>Equip: {r.tipo} {r.marca}</strong>
-                                        <small>Reparación de {r.clienteNombre}</small>
+                                        <small style={{ display: 'block' }}>Reparación de {r.clienteNombre} {prov?.direccion ? `• ${prov.direccion}` : ''}</small>
+                                        {(prov?.coordenadas || client?.coordenadas) && (
+                                            <small style={{ display: 'block', color: '#0369a1', fontWeight: 600 }}>
+                                                📍 {prov?.coordenadas || client?.coordenadas}
+                                            </small>
+                                        )}
                                     </div>
                                     <div className="task-actions">
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <button className="btn-geo" onClick={() => openMap(r.proveedorNombre || r.clienteNombre)} title="Mapa">📍 Localizar</button>
+                                            <button className="btn-geo" onClick={() => openMap(targetLoc)} title="Abrir ubicación en Google Maps">📍 Localizar</button>
                                             <button
                                                 className="btn-complete"
                                                 onClick={() => markAsCompleted(r, 'rep')}
@@ -518,7 +618,8 @@ const ConductoresModule: React.FC<IProps> = ({
                                         </div>
                                     </div>
                                 </div>
-                            )) : <p className="empty-msg">No tiene reparaciones asignadas.</p>}
+                            );
+                            }) : <p className="empty-msg">No tiene reparaciones asignadas.</p>}
                         </div>
                     </div>
 
